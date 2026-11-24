@@ -55,12 +55,17 @@ function districtAt(latitude, longitude, boundaries) {
   }
 }
 
-function prayerTimesFor(district, date, boundaries) {
-  if (Object.hasOwn(bangladeshTimetable, district)) return timetableEntry(district, date);
+function districtCenter(district, boundaries) {
   const box = boundaries?.[district]?.[0];
   if (!box) return null;
-  const latitude = (box[1] + box[3]) / 2;
-  const longitude = (box[0] + box[2]) / 2;
+  return {latitude: (box[1] + box[3]) / 2, longitude: (box[0] + box[2]) / 2};
+}
+
+function prayerTimesFor(district, date, boundaries) {
+  if (Object.hasOwn(bangladeshTimetable, district)) return timetableEntry(district, date);
+  const center = districtCenter(district, boundaries);
+  if (!center) return null;
+  const {latitude, longitude} = center;
   const dhakaPosition = solarEvents(23.8103, 90.4125, date);
   const districtPosition = solarEvents(latitude, longitude, date);
   return timetableEntry('Dhaka', date).map((minute, i) => Math.round(minute + districtPosition[i] - dhakaPosition[i]));
@@ -180,6 +185,7 @@ function initializePrayerLocation(onChange) {
   }
   return {
     get district() { return preference.district; },
+    async centerFor(district) { return districtCenter(district, await districtData()); },
     forbiddenPeriods(date) { return forbiddenPrayerPeriods(preference.district, date, boundaries); },
     deadlines(date) { return deadlineMinutes(preference.district, date, boundaries); },
   };

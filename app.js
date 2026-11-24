@@ -174,6 +174,7 @@ function renderClock(now) {
 function tick() {
   const now = new Date();
   renderClock(now);
+  refreshWeather();
   if (dateKey.format(now) !== todayKey) {
     selected = now;
     todayKey = dateKey.format(now);
@@ -185,7 +186,10 @@ function tick() {
 const prayerLocation = initializePrayerLocation(() => {
   renderClock(new Date());
   renderPrayers(dayNames.indexOf(shortDay.format(selected)), readDone());
+  refreshWeather();
 });
+const refreshWeather = initializeWeather(prayerLocation);
+document.addEventListener('visibilitychange', refreshWeather);
 tick();
 render();
 setInterval(tick, 15000);
