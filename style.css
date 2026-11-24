@@ -212,6 +212,8 @@
 [data-theme="dark"] .stars { opacity: 1; transform: none; }
 
 @media (max-width: 760px) {
+  header { margin-top: 16px; }
+
   .sun,
   .moon { width: 75px; height: 75px; right: 11%; }
 }
