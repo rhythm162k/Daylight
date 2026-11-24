@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f7f6ef"><meta name="description" content="Your personal weekly rhythm, with time for focus, faith, and family."><title>Daylight · My routine</title><script src="theme.js"></script><link rel="stylesheet" href="style.css"><script src="district-names.js" defer></script><script src="prayer-timetable.js" defer></script><script src="prayers.js" defer></script><script src="app.js" defer></script></head>
+<body><header><div class="brand"><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false"><span class="theme-icon" aria-hidden="true"><span class="icon-sun">☀</span><span class="icon-moon crescent"></span></span></button> Daylight</div><div id="clock"></div></header>
+<main><section class="hero"><div class="hero-copy"><p class="eyebrow" id="date"></p><h1>My daily routine</h1><p id="theme"></p></div><div class="landscape" aria-hidden="true"><i class="stars"></i><i class="sun"></i><i class="moon crescent"></i><i class="hill far"></i><i class="hill near"></i><i class="hill front"></i></div></section>
+<nav class="week" aria-label="Week"></nav>
+<div class="layout"><section class="schedule" aria-labelledby="schedule-title"><div class="section-head"><h2 id="schedule-title">Today's plan</h2><button id="today" class="quiet" hidden>Back to today</button></div><div id="timeline"></div></section>
+<aside><section class="panel next"><div class="eyebrow" id="next-label">NEXT UNFINISHED</div><h2 id="next-title"></h2><p id="next-detail"></p><button id="complete">Mark complete <span aria-hidden="true">✓</span></button></section>
+<section class="panel"><div class="section-head"><h2>Daily progress</h2><strong id="fraction"></strong></div><progress id="progress" value="0" max="1" aria-label="Daily progress"></progress><dl id="totals"></dl></section>
+<section class="panel prayers"><h2>Salah</h2>
+<div id="forbidden-status" class="forbidden-status" role="status" hidden></div>
+<div class="prayer-location"><label for="prayer-district">District</label><div class="district-picker"><select id="prayer-district"></select></div></div>
+<button class="location-button" id="use-location" type="button">Use my location</button>
+<p id="location-status" role="status"></p>
+<p id="prayer-method"></p>
+<div id="prayers"></div>
+<details id="forbidden-periods" hidden><summary>Forbidden prayer times</summary>
+<ul id="forbidden-list"></ul>
+<p>If you still owe today’s Asr, the Islamic Foundation timetable allows you to pray it during the period just before sunset.</p></details>
+<details><summary>How cutoffs are shown</summary>
+<p>Hanafi cutoffs use sunrise for Fajr, Asr start for Dhuhr, sunset for Asr, Isha start for Maghrib, and the next dawn for Isha. Pray earlier when you can. Your mosque sets its own Jumu’ah congregation time.</p>
+<p>Dhaka and Mymensingh use the <a href="https://kivabe.com/namaz/?zilla=1&amp;month=12">published Dhaka table</a> and <a href="https://kivabe.com/namaz/?zilla=37&amp;month=12">Mymensingh table</a> based on the <a href="https://kivabe.com/namaz/Calender_permanent_namaz_time.pdf">Islamic Foundation Bangladesh timetable</a>. Other districts use estimates adjusted for their location. February 29 uses an estimate from adjacent dates.</p>
+<p>District boundaries are from Bangladesh Bureau of Statistics and OCHA ROAP via <a href="https://www.geoboundaries.org/">geoBoundaries</a>, <a href="https://creativecommons.org/licenses/by/3.0/igo/">CC BY 3.0 IGO</a>, with rounded coordinates.</p></details></section></aside></div></main></body></html>
