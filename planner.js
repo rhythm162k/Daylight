@@ -1,4 +1,5 @@
 const dayMinutes = 1440;
+const splitBreakMinutes = 10;
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const minuteOf = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
 
@@ -63,13 +64,13 @@ function planDay(routine, prayer, day, date, original = []) {
   const additions = activities.filter(activity => !anchored.includes(activity));
   const inPlace = packActivities(freeSlots(wake, bed, [...fixed, ...anchoredItems]), additions);
   if (inPlace.activities.every(activity => !activity.remaining)) {
-    return {items: timelineItems([...fixed, ...anchoredItems, ...inPlace.items]),
+    return {items: timelineItems([...fixed, ...anchoredItems, ...inPlace.items], activities, date),
       activities, unscheduled: [], outside, conflicts: [...conflicts]};
   }
 
   const plan = fitActivities(slots, activities);
   return {
-    items: timelineItems([...fixed, ...plan.items]),
+    items: timelineItems([...fixed, ...plan.items], activities, date),
     activities,
     unscheduled: plan.activities.flatMap((activity, index) => {
       const remaining = activities[index].minutes - activity.minutes + activity.remaining;
@@ -80,8 +81,66 @@ function planDay(routine, prayer, day, date, original = []) {
   };
 }
 
-function timelineItems(items) {
+function shuffleRoutineSessions(items, activities, date) {
+  const dateNumber = Date.parse(date) / 86400000;
+  const movable = new Set(activities.filter(activity => !activity.date && activity.notBefore === undefined)
+    .map(activity => activity.id));
+  const group = new Map();
+  let seed = dateNumber >>> 0;
+
+  function shuffleGroup() {
+    if (group.size > 1) {
+      const sessions = [...group.values()];
+      const order = [...sessions];
+      // Cycle the opening activity when the same group runs on consecutive days.
+      const first = (dateNumber % order.length + order.length) % order.length;
+      [order[0], order[first]] = [order[first], order[0]];
+      for (let index = order.length - 1; index > 1; index--) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        const other = 1 + seed % index;
+        [order[index], order[other]] = [order[other], order[index]];
+      }
+
+      // Keep the total window, including its idle gaps and reserved breaks.
+      const gaps = sessions.slice(1).map(([item], index) => item.start - sessions[index].at(-1).end);
+      let start = sessions[0][0].start;
+      order.forEach((session, index) => {
+        const offset = start - session[0].start;
+        for (const item of session) {
+          item.start += offset;
+          item.end += offset;
+          for (const pause of item.breaks || []) {
+            pause.start += offset;
+            pause.end += offset;
+          }
+        }
+        start = session.at(-1).end + (gaps[index] ?? 0);
+      });
+    }
+    group.clear();
+  }
+
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const pause = items[index + 1]?.sessionBreak ? items[index + 1] : undefined;
+    if (pause) index++;
+    // A short break uses the last minutes before a fixed boundary.
+    if (!movable.has(item.activityId) || (pause && pause.end - pause.start < splitBreakMinutes)) {
+      shuffleGroup();
+      continue;
+    }
+    if (group.has(item.activityId)) shuffleGroup();
+    group.set(item.activityId, pause ? [item, pause] : [item]);
+  }
+  shuffleGroup();
+}
+
+function timelineItems(items, activities, date) {
   items.sort((a, b) => a.start - b.start);
+  if (date) {
+    shuffleRoutineSessions(items, activities, date);
+    items.sort((a, b) => a.start - b.start);
+  }
   const sessions = new Map();
   for (const item of items) {
     if (!item.activityId) continue;
@@ -220,14 +279,14 @@ function packSessions(slots, activities) {
     activity.remaining = 0;
   }
 
-  const full = placeFlexible(slots, flexible, 10, true);
+  const full = placeFlexible(slots, flexible, splitBreakMinutes, true);
   const fitsFullSessions = full.activities.every(activity => !activity.remaining);
-  const packed = fitsFullSessions ? full : placeFlexible(slots, flexible, 10, false);
+  const packed = fitsFullSessions ? full : placeFlexible(slots, flexible, splitBreakMinutes, false);
   const spare = packed.slots.reduce((sum, slot) => sum + slot.end - slot.start, 0);
   const breaks = packed.items.filter(item => !item.id).length;
   let sessions = packed;
   if (breaks && spare && packed.activities.every(activity => !activity.remaining)) {
-    const spacing = Math.min(180, 10 + Math.floor(spare / breaks));
+    const spacing = Math.min(180, splitBreakMinutes + Math.floor(spare / breaks));
     const spread = placeFlexible(slots, flexible, spacing, fitsFullSessions);
     if (spread.activities.every((activity, index) =>
       !activity.remaining && activity.parts <= packed.activities[index].parts)) sessions = spread;
@@ -255,7 +314,8 @@ function placeFlexible(availability, activities, spacing, preferFullSessions) {
         items.push(sessionItem(activity, start, start + minutes, minutes, '-' + activity.parts));
         slot.start += minutes;
         if (activity.remaining && slot.start < slot.end) {
-          items.push({start: slot.start, end: Math.min(slot.start + 10, slot.end), title: 'Break'});
+          items.push({start: slot.start, end: Math.min(slot.start + splitBreakMinutes, slot.end),
+            title: 'Break', sessionBreak: true});
           slot.start = Math.min(slot.start + spacing, slot.end);
         }
         scheduled = true;
