@@ -389,6 +389,11 @@
   font: inherit;
   font-weight: 400;
 }
+#settings-form input[type="time"] {
+  /* iOS gives native time fields content-box sizing despite the form styles. */
+  -webkit-appearance: none;
+  appearance: none;
+}
 #settings-form :is(input, select):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .settings-select { position: relative; display: block; }
 .settings-select::after {
