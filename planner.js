@@ -3,6 +3,12 @@ const splitBreakMinutes = 10;
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const minuteOf = value => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
 
+function activityPriority(activity) {
+  if (activity.schedulePriority) return activity.schedulePriority;
+  if (activity.source === 'focus-a') return 'high';
+  return ['series', 'family', 'audio'].includes(activity.source) ? 'low' : 'mid';
+}
+
 function activityApplies(activity, day, date) {
   return activity.date ? activity.date === date : !activity.days || activity.days.includes(day);
 }
@@ -39,7 +45,7 @@ function planDay(routine, prayer, day, date, original = []) {
       if (start < bed && end > wake) {
         fixed.push({
           start: Math.max(wake, start), end: Math.min(bed, end),
-          title: entry.name, detail: prayer.title,
+          title: entry.name, detail: prayer.title || 'Prayer',
         });
       }
     }
@@ -51,23 +57,6 @@ function planDay(routine, prayer, day, date, original = []) {
     minutes: activity.weeklyMinutes?.[day] ?? activity.minutes,
     original: activity.source && original.find(item => item.id === activity.source),
   }));
-  const anchored = activities.filter(activity => {
-    const item = activity.original;
-    return item && activity.originalSession !== false && activity.notBefore === undefined &&
-      activity.minutes <= item.end - item.start &&
-      slots.some(slot => slot.start <= item.start && slot.end >= item.start + activity.minutes);
-  });
-  const anchoredItems = anchored.map(activity => ({
-    ...activity.original, title: activity.name, activityId: activity.id,
-    end: activity.original.start + activity.minutes,
-  }));
-  const additions = activities.filter(activity => !anchored.includes(activity));
-  const inPlace = packActivities(freeSlots(wake, bed, [...fixed, ...anchoredItems]), additions);
-  if (inPlace.activities.every(activity => !activity.remaining)) {
-    return {items: timelineItems([...fixed, ...anchoredItems, ...inPlace.items], activities, date),
-      activities, unscheduled: [], outside, conflicts: [...conflicts]};
-  }
-
   const plan = fitActivities(slots, activities);
   return {
     items: timelineItems([...fixed, ...plan.items], activities, date),
@@ -83,9 +72,10 @@ function planDay(routine, prayer, day, date, original = []) {
 
 function shuffleRoutineSessions(items, activities, date) {
   const dateNumber = Date.parse(date) / 86400000;
-  const movable = new Set(activities.filter(activity => !activity.date && activity.notBefore === undefined)
-    .map(activity => activity.id));
+  const movable = new Map(activities.filter(activity => !activity.date && activity.notBefore === undefined)
+    .map(activity => [activity.id, activityPriority(activity)]));
   const group = new Map();
+  let priority;
   let seed = dateNumber >>> 0;
 
   function shuffleGroup() {
@@ -129,7 +119,9 @@ function shuffleRoutineSessions(items, activities, date) {
       shuffleGroup();
       continue;
     }
-    if (group.has(item.activityId)) shuffleGroup();
+    const nextPriority = movable.get(item.activityId);
+    if (priority !== nextPriority || group.has(item.activityId)) shuffleGroup();
+    priority = nextPriority;
     group.set(item.activityId, pause ? [item, pause] : [item]);
   }
   shuffleGroup();
@@ -189,12 +181,16 @@ function fitActivities(slots, activities) {
   let best = pack(minutes);
   if (!fits(best)) return full;
 
-  // Give today's additions first claim on time, then the most recent routine edits.
+  // Within each priority, favor today's additions and the most recent routine edits.
   const latest = Math.max(0, ...activities.filter(activity => !activity.date).map(activity => activity.priority || 0));
-  const groups = [[], [], []];
-  activities.forEach((activity, index) => {
-    const group = activity.date ? 0 : latest && activity.priority === latest ? 1 : 2;
-    groups[group].push(index);
+  const groups = ['high', 'mid', 'low'].flatMap(priority => {
+    const tiers = [[], [], []];
+    activities.forEach((activity, index) => {
+      if (activityPriority(activity) !== priority) return;
+      const tier = activity.date ? 0 : latest && activity.priority === latest ? 1 : 2;
+      tiers[tier].push(index);
+    });
+    return tiers;
   });
   for (const group of groups) {
     if (!group.length) continue;
@@ -227,27 +223,77 @@ function fitActivities(slots, activities) {
 }
 
 function packActivities(availability, activities) {
-  const slots = availability.map(slot => ({...slot}));
-  const scheduled = new Map();
+  const plan = packByPriority(availability, activities);
+  const scheduled = new Map(plan.activities.map(activity => [activity.id, activity]));
+  return {items: plan.items, activities: activities.map(activity => scheduled.get(activity.id))};
+}
+
+function packAfter(slots, start, activities, spreadSessions) {
+  const earlier = slots.filter(slot => slot.start < start)
+    .map(slot => ({start: slot.start, end: Math.min(slot.end, start)}));
+  const later = slots.filter(slot => slot.end > start)
+    .map(slot => ({start: Math.max(slot.start, start), end: slot.end}));
+  const result = packSessions(later, activities, spreadSessions);
+  result.slots = [...earlier, ...result.slots].filter(slot => slot.start < slot.end);
+  for (let index = result.slots.length - 1; index > 0; index--) {
+    const previous = result.slots[index - 1];
+    if (previous.end === result.slots[index].start) previous.end = result.slots.splice(index, 1)[0].end;
+  }
+  return result;
+}
+
+function packTier(availability, activities, start, spreadSessions = false) {
+  let slots = availability;
   const items = [];
-  for (const activity of activities.filter(activity => activity.notBefore !== undefined)) {
-    const late = [];
-    for (const slot of slots) {
-      if (slot.end > activity.notBefore) late.push({start: Math.max(slot.start, activity.notBefore), end: slot.end});
+  const scheduled = [];
+  const unrestricted = [];
+  for (const activity of activities) {
+    if (activity.notBefore === undefined) {
+      unrestricted.push(activity);
+      continue;
     }
-    const result = packSessions(late, [activity]);
-    const earlier = slots.filter(slot => slot.start < activity.notBefore)
-      .map(slot => ({start: slot.start, end: Math.min(slot.end, activity.notBefore)}));
-    slots.splice(0, slots.length, ...earlier, ...result.slots);
-    for (let index = slots.length - 1; index > 0; index--) {
-      if (slots[index - 1].end === slots[index].start) slots[index - 1].end = slots.splice(index, 1)[0].end;
-    }
-    scheduled.set(activity.id, result.activities[0]);
+    const result = packAfter(slots, Math.max(start, activity.notBefore), [activity], spreadSessions);
+    slots = result.slots;
+    scheduled.push(...result.activities);
     items.push(...result.items);
   }
-  const rest = packSessions(slots, activities.filter(activity => !scheduled.has(activity.id)));
-  for (const activity of rest.activities) scheduled.set(activity.id, activity);
-  return {items: [...items, ...rest.items], activities: activities.map(activity => scheduled.get(activity.id))};
+  const rest = packAfter(slots, start, unrestricted, spreadSessions);
+  return {items: [...items, ...rest.items], activities: [...scheduled, ...rest.activities], slots: rest.slots};
+}
+
+function packByPriority(availability, activities) {
+  const high = activities.filter(activity => activityPriority(activity) === 'high');
+  const mid = activities.filter(activity => activityPriority(activity) === 'mid');
+  const low = activities.filter(activity => activityPriority(activity) === 'low');
+  const fits = result => result.activities.every(activity => !activity.remaining);
+  const start = availability[0]?.start ?? 0;
+  const end = availability.at(-1)?.end ?? start;
+  const opening = packTier(availability, high, start);
+  const firstHigh = high.some(activity => activity.notBefore === undefined) && opening.items.length
+    ? Math.min(...opening.items.map(item => item.start)) : start;
+
+  function packRemaining(slots, midStart) {
+    const middle = packTier(slots, mid, midStart);
+    const gaps = packTier(middle.slots, low, start, true);
+    return {
+      items: [...opening.items, ...middle.items, ...gaps.items],
+      activities: [...opening.activities, ...middle.activities, ...gaps.activities],
+    };
+  }
+
+  const afterHigh = opening.slots.filter(slot => slot.start >= firstHigh);
+  const middleStart = start + Math.floor((end - start) / 2);
+  const centered = packRemaining(afterHigh, middleStart);
+  if (fits(centered)) return centered;
+  const early = packRemaining(afterHigh, start);
+  if (fits(early)) return early;
+  const withEarlierGaps = afterHigh.length === opening.slots.length ? early : packRemaining(opening.slots, start);
+  if (fits(withEarlierGaps)) return withEarlierGaps;
+
+  // A long session may need a window that priority-first placement already used.
+  const compact = packTier(availability, [...high, ...mid, ...low], start);
+  const missing = result => result.activities.reduce((sum, activity) => sum + activity.remaining, 0);
+  return missing(compact) < missing(withEarlierGaps) ? compact : withEarlierGaps;
 }
 
 function sessionItem(activity, start, end, minutes, suffix = '') {
@@ -258,7 +304,7 @@ function sessionItem(activity, start, end, minutes, suffix = '') {
   };
 }
 
-function packSessions(slots, activities) {
+function packSessions(slots, activities, spreadSessions = true) {
   const items = [];
   const pending = activities.map(activity => ({...activity, remaining: activity.minutes, parts: 0}));
   const continuous = pending.filter(activity => !activity.split);
@@ -285,7 +331,7 @@ function packSessions(slots, activities) {
   const spare = packed.slots.reduce((sum, slot) => sum + slot.end - slot.start, 0);
   const breaks = packed.items.filter(item => !item.id).length;
   let sessions = packed;
-  if (breaks && spare && packed.activities.every(activity => !activity.remaining)) {
+  if (spreadSessions && breaks && spare && packed.activities.every(activity => !activity.remaining)) {
     const spacing = Math.min(180, splitBreakMinutes + Math.floor(spare / breaks));
     const spread = placeFlexible(slots, flexible, spacing, fitsFullSessions);
     if (spread.activities.every((activity, index) =>

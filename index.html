@@ -151,9 +151,9 @@
             <dl id="totals"></dl>
             <p id="progress-status" role="status"></p>
           </section>
-          <section class="panel prayers" id="prayer-panel" hidden>
+          <section class="panel prayers" id="prayer-panel" aria-labelledby="prayer-title">
             <div class="section-head">
-              <h2 id="prayer-title">Salah</h2>
+              <h2 id="prayer-title">Prayer</h2>
               <button id="edit-prayer" class="icon-button" type="button" aria-label="Edit prayer" title="Edit prayer">
                 <svg aria-hidden="true"><use href="#icon-edit" /></svg>
               </button>
@@ -279,7 +279,7 @@
             </span>
           </label>
           <fieldset id="custom-prayer-settings" hidden>
-            <label>Section title <input id="custom-prayer-title" maxlength="60" required placeholder="Prayer" /></label>
+            <label>Section title (optional) <input id="custom-prayer-title" maxlength="60" placeholder="Prayer" /></label>
             <p>Set a time to reserve space in your plan, or leave it blank for a checklist entry.</p>
             <div id="prayer-settings-rows"></div>
             <button class="icon-button add-row" id="add-prayer" type="button" aria-label="Add prayer" title="Add prayer">

@@ -200,10 +200,9 @@ function renderSalah(done) {
 function renderPrayers(done) {
   const prayer = profile?.prayer || noPrayer;
   const salah = prayer.mode === 'salah';
-  byId('prayer-panel').hidden = prayer.mode === 'none';
   byId('salah-controls').hidden = !salah;
   byId('salah-details').hidden = !salah;
-  byId('prayer-title').textContent = salah ? 'Salah' : prayer.title;
+  byId('prayer-title').textContent = salah ? 'Salah' : (prayer.mode === 'custom' && prayer.title) || 'Prayer';
   const editLabel = salah ? 'Prayer settings' : 'Edit prayer';
   byId('edit-prayer').setAttribute('aria-label', editLabel);
   byId('edit-prayer').title = editLabel;
@@ -212,10 +211,10 @@ function renderPrayers(done) {
     return;
   }
   const entries = prayer.mode === 'custom' ? prayer.entries : [];
-  byId('prayers').innerHTML = entries.map(entry => {
+  byId('prayers').innerHTML = entries.length ? entries.map(entry => {
     const timing = entry.time ? time(minuteOf(entry.time)) + ' · ' + entry.minutes + ' min' : '';
     return `<div class="prayer"><div><span>${escapeHtml(entry.name)}</span>${timing ? `<small>${timing}</small>` : ''}</div>${checkbox('custom-prayer-' + entry.id, entry.name, done)}</div>`;
-  }).join('');
+  }).join('') : '<p class="empty-plan">Add prayers or practices to fill your checklist.</p>';
 }
 
 function renderPlanRow(item, done) {

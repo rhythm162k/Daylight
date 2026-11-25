@@ -35,7 +35,7 @@ function initializeSettings(profile, onSave) {
   function resetFit() {
     confirmedFit = undefined;
     fit.hidden = true;
-    save.textContent = profile ? 'Save settings' : 'Create my plan';
+    save.textContent = profile || get('routine-settings').disabled ? 'Save settings' : 'Create my plan';
   }
   form.addEventListener('input', event => {
     if (event.target.type !== 'search') resetFit();
@@ -72,12 +72,21 @@ function initializeSettings(profile, onSave) {
       <div class="settings-grid">
         <label>Activity name <input data-field="name" required maxlength="80" placeholder="e.g. Study" /></label>
         <label>Minutes <input data-field="minutes" type="number" min="1" max="1440" required /></label>
-        <label class="wide">Frequency
+        <label>Frequency
           <span class="settings-select">
             <select data-field="frequency">
               <option value="daily">Every day</option>
               <option value="weekly">Selected weekdays</option>
               <option value="today">Today only</option>
+            </select>
+          </span>
+        </label>
+        <label>Priority
+          <span class="settings-select">
+            <select data-field="schedulePriority">
+              <option value="high">High</option>
+              <option value="mid">Mid</option>
+              <option value="low">Low</option>
             </select>
           </span>
         </label>
@@ -96,7 +105,7 @@ function initializeSettings(profile, onSave) {
       <p class="one-time-date" hidden></p>
       ${entry.weeklyMinutes?.some(minutes => minutes !== entry.minutes)
         ? '<p class="original-duration">Some days use the original duration until you edit the minutes.</p>' : ''}`, {
-      name: entry.name, minutes: entry.minutes,
+      name: entry.name, minutes: entry.minutes, schedulePriority: activityPriority(entry),
       type: entry.source && entry.originalSession !== false ? 'original' : entry.split === false ? 'single' : 'split',
       frequency: entry.date ? 'today' : entry.days ? 'weekly' : 'daily',
     }, onDelete);
@@ -264,10 +273,11 @@ function initializeSettings(profile, onSave) {
     const prayerSection = get('prayer-settings');
     routineSection.hidden = routineSection.disabled = scope === 'prayer';
     prayerSection.hidden = prayerSection.disabled = scope === 'routine';
-    get('settings-title').textContent = firstRun ? 'Set up your day' :
+    get('settings-title').textContent = firstRun && scope === 'all' ? 'Set up your day' :
       {routine: 'Edit routine', prayer: 'Prayer settings', all: 'Settings'}[scope];
     const intro = get('settings-intro');
-    intro.textContent = firstRun ? 'Add what you want to do. Daylight will find time around your commitments.' : '';
+    intro.textContent = firstRun && scope !== 'prayer' ?
+      'Add what you want to do. Daylight will find time around your commitments.' : '';
     intro.hidden = !intro.textContent;
     resetFit();
     const routine = editableRoutine(profile);
@@ -279,7 +289,7 @@ function initializeSettings(profile, onSave) {
     activityEditor.open(routine.activities);
     const prayer = profile?.prayer || noPrayer;
     mode.value = prayer.mode;
-    get('custom-prayer-title').value = prayer.title || 'Prayer';
+    get('custom-prayer-title').value = prayer.title;
     prayerRows.replaceChildren(...prayer.entries.map(prayerRow));
     updateMode();
     error.hidden = true;
@@ -343,7 +353,7 @@ function initializeSettings(profile, onSave) {
   form.addEventListener('submit', event => {
     event.preventDefault();
     error.hidden = true;
-    const next = {...profile};
+    const next = {prayer: noPrayer, ...profile};
     const changed = new Set();
     const current = editableRoutine(profile);
     const now = new Date();
@@ -371,11 +381,11 @@ function initializeSettings(profile, onSave) {
       const priority = Math.max(0, ...current.activities.map(activity => activity.priority || 0)) + 1;
       const today = todayForRoutine({wake, bed}, now);
       for (const row of activityEditor.drafts()) {
-        const {name, minutes, type, frequency} = values(row);
+        const {name, minutes, schedulePriority, type, frequency} = values(row);
         if (!name) return showError('Enter an activity name.', row.querySelector('[data-field="name"]'));
         const id = row.dataset.id;
         const before = activities.get(id);
-        const activity = {id, name, minutes: Number(minutes), split: type === 'split'};
+        const activity = {id, name, minutes: Number(minutes), split: type === 'split', schedulePriority};
         if (before?.source) {
           activity.source = before.source;
           activity.originalSession = type === 'original';
@@ -406,7 +416,6 @@ function initializeSettings(profile, onSave) {
       const prayer = {...(profile?.prayer || noPrayer), mode: mode.value};
       if (mode.value === 'custom') {
         prayer.title = get('custom-prayer-title').value.trim();
-        if (!prayer.title) return showError('Enter a title for your prayer section.', get('custom-prayer-title'));
         if (!prayerRows.children.length) return showError('Add at least one prayer or practice.', get('add-prayer'));
         prayer.entries = [];
         for (const row of prayerRows.children) {
@@ -419,6 +428,7 @@ function initializeSettings(profile, onSave) {
     }
 
     const routine = editableRoutine(next);
+    if (!profile) next.routine = routine;
     if ((!get('routine-settings').disabled || next.prayer.mode === 'custom') &&
         !checkFit({...next, routine}, changed, todayForRoutine(routine, now))) return;
 
