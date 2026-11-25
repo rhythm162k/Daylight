@@ -5,9 +5,9 @@ Daylight builds a daily plan around your waking hours, fixed commitments, and th
 ## Set up your day
 
 - **Routine.** Set your usual wake time and bedtime, then add fixed commitments such as work or commuting. Choose which days each commitment repeats.
-- **Activities.** Add or remove activities in **Edit routine**. Set active minutes and choose every day, selected weekdays, or today only. High priority gets the earliest available time, Mid aims for the middle of the day, and Low fills gaps. Choose one session with a five-minute break after each 30 minutes of work, or split the activity into blocks of up to two hours. When time is tight, Daylight previews which activities it can shorten before you save. Sleep and reserved breaks are protected.
+- **Activities.** Add or remove activities in **Edit routine**. Set active minutes and choose every day, selected weekdays, or today only. **First every day** makes an activity the opener on its scheduled days. **First today** overrides the usual opener for the current day. The other recurring activities shuffle by date. Choose one session with short breaks or split it across the day.
 - **Prayer.** Use the edit button on the Prayer card to set up the Bangladesh Salah timetable or a custom checklist. A custom checklist uses **Prayer** as its title when you leave the title blank. Giving a custom entry a time reserves space in the plan.
-- **Progress.** Use the weekly calendar to view a day and check off activities or prayers. Edit the routine from the plan, or use **Settings** to change the routine and prayer preferences.
+- **Progress.** Use the weekly calendar to view today or an earlier day and check off activities or prayers. Future days show a dad joke from [icanhazdadjoke](https://icanhazdadjoke.com/api) until the day starts. Refresh a future day for another joke.
 
 ## Run locally
 

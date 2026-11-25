@@ -19,6 +19,7 @@
     <script src="weather.js" defer></script>
     <script src="planner.js" defer></script>
     <script src="settings.js" defer></script>
+    <script src="jokes.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
@@ -126,8 +127,15 @@
           </div>
           <ul id="plan-notes" class="plan-notes" hidden></ul>
           <div id="timeline"></div>
+          <div id="future-plan" class="future-plan" hidden>
+            <div class="future-plan-lines" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <div class="future-plan-copy">
+              <p class="eyebrow">Reveals when the day starts</p>
+              <p id="future-joke" role="status"></p>
+            </div>
+          </div>
         </section>
-        <aside>
+        <aside id="day-sidebar">
           <section class="panel next">
             <div class="eyebrow" id="next-label">NEXT UNFINISHED</div>
             <h2 id="next-title"></h2>

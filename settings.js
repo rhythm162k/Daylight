@@ -31,6 +31,10 @@ function initializeSettings(profile, onSave) {
   const save = get('save-settings');
   let confirmedFit;
   let trigger;
+  let openingDate;
+  let firstEveryDay;
+  let firstToday;
+  let firstTodayChanged;
 
   function resetFit() {
     confirmedFit = undefined;
@@ -81,16 +85,7 @@ function initializeSettings(profile, onSave) {
             </select>
           </span>
         </label>
-        <label>Priority
-          <span class="settings-select">
-            <select data-field="schedulePriority">
-              <option value="high">High</option>
-              <option value="mid">Mid</option>
-              <option value="low">Low</option>
-            </select>
-          </span>
-        </label>
-        <label class="wide">Session type
+        <label>Session type
           <span class="settings-select">
             <select data-field="type">
               ${entry.source ? '<option value="original">Original session</option>' : ''}
@@ -101,17 +96,26 @@ function initializeSettings(profile, onSave) {
         </label>
       </div>
       <p>A single session includes a 5-minute break after every 30 minutes of activity.</p>
+      <div class="first-activity-options">
+        <label><input type="checkbox" data-first="daily" /> First every day</label>
+        <label><input type="checkbox" data-first="today" /> First today</label>
+      </div>
       ${weekdayFields()}
       <p class="one-time-date" hidden></p>
       ${entry.weeklyMinutes?.some(minutes => minutes !== entry.minutes)
         ? '<p class="original-duration">Some days use the original duration until you edit the minutes.</p>' : ''}`, {
-      name: entry.name, minutes: entry.minutes, schedulePriority: activityPriority(entry),
+      name: entry.name, minutes: entry.minutes,
       type: entry.source && entry.originalSession !== false ? 'original' : entry.split === false ? 'single' : 'split',
       frequency: entry.date ? 'today' : entry.days ? 'weekly' : 'daily',
     }, onDelete);
     const days = row.querySelector('.day-options');
     const date = row.querySelector('.one-time-date');
     const frequency = row.querySelector('[data-field="frequency"]');
+    const daily = row.querySelector('[data-first="daily"]');
+    const today = row.querySelector('[data-first="today"]');
+    daily.checked = firstEveryDay === row.dataset.id;
+    today.checked = firstToday === row.dataset.id;
+    today.disabled = Boolean(entry.date && entry.date !== openingDate);
     if (entry.date) {
       frequency.querySelector('[value="today"]').textContent = 'One time';
       date.textContent = entry.date;
@@ -120,6 +124,11 @@ function initializeSettings(profile, onSave) {
     function updateFrequency() {
       days.hidden = days.disabled = frequency.value !== 'weekly';
       date.hidden = !entry.date || frequency.value !== 'today';
+      daily.disabled = frequency.value === 'today';
+      if (daily.disabled && daily.checked) {
+        daily.checked = false;
+        firstEveryDay = undefined;
+      }
     }
     frequency.addEventListener('change', updateFrequency);
     updateFrequency();
@@ -212,6 +221,22 @@ function initializeSettings(profile, onSave) {
   const activityEditor = searchableEntries('activity', 'activities', activityRow);
   const commitmentEditor = searchableEntries('commitment', 'commitments', commitmentRow);
 
+  get('activity-settings').addEventListener('change', event => {
+    const choice = event.target;
+    if (!choice.dataset.first) return;
+    const id = choice.checked ? choice.closest('.settings-row').dataset.id : undefined;
+    if (choice.dataset.first === 'daily') firstEveryDay = id;
+    else {
+      firstToday = id;
+      firstTodayChanged = true;
+    }
+    if (choice.checked) {
+      for (const other of get('activity-settings').querySelectorAll(`[data-first="${choice.dataset.first}"]`)) {
+        if (other !== choice) other.checked = false;
+      }
+    }
+  });
+
   function weekdayFields() {
     return `<fieldset class="day-options">
       <legend>Repeats on</legend>
@@ -281,6 +306,10 @@ function initializeSettings(profile, onSave) {
     intro.hidden = !intro.textContent;
     resetFit();
     const routine = editableRoutine(profile);
+    openingDate = todayForRoutine(routine).date;
+    firstEveryDay = routine.firstActivityId;
+    firstToday = routine.firstByDate?.[openingDate];
+    firstTodayChanged = false;
     sleepSettings.open = firstRun;
     sleepFields.disabled = !firstRun;
     wakeTime.value = routine.wake;
@@ -310,7 +339,7 @@ function initializeSettings(profile, onSave) {
 
   function checkFit(next, changed, today) {
     const dates = weekdays.map((label, index) => ({label, index}));
-    if (next.routine.activities.some(activity => activity.date === today.date)) {
+    if (next.routine.firstByDate?.[today.date] || next.routine.activities.some(activity => activity.date === today.date)) {
       dates.push({label: 'Today', index: today.day, date: today.date});
     }
     for (const date of new Set(next.routine.activities.filter(activity =>
@@ -381,11 +410,11 @@ function initializeSettings(profile, onSave) {
       const priority = Math.max(0, ...current.activities.map(activity => activity.priority || 0)) + 1;
       const today = todayForRoutine({wake, bed}, now);
       for (const row of activityEditor.drafts()) {
-        const {name, minutes, schedulePriority, type, frequency} = values(row);
+        const {name, minutes, type, frequency} = values(row);
         if (!name) return showError('Enter an activity name.', row.querySelector('[data-field="name"]'));
         const id = row.dataset.id;
         const before = activities.get(id);
-        const activity = {id, name, minutes: Number(minutes), split: type === 'split', schedulePriority};
+        const activity = {id, name, minutes: Number(minutes), split: type === 'split'};
         if (before?.source) {
           activity.source = before.source;
           activity.originalSession = type === 'original';
@@ -394,8 +423,8 @@ function initializeSettings(profile, onSave) {
           }
         }
         if (frequency === 'weekly') {
-          activity.days = [...row.querySelectorAll(':checked')].map(input => Number(input.value));
-          if (!activity.days.length) return showError('Select at least one day for ' + name + '.', row.querySelector('[type="checkbox"]'));
+          activity.days = [...row.querySelectorAll('.day-options :checked')].map(input => Number(input.value));
+          if (!activity.days.length) return showError('Select at least one day for ' + name + '.', row.querySelector('.day-options input'));
         }
         if (frequency === 'today') {
           activity.date = before?.date || today.date;
@@ -408,7 +437,18 @@ function initializeSettings(profile, onSave) {
         if (!activity.date && (timingChanged || before.priority)) activity.priority = timingChanged ? priority : before.priority;
         activities.set(id, activity);
       }
-      next.routine = {wake, bed, commitments: [...commitments.values()], activities: [...activities.values()]};
+      const firstByDate = Object.fromEntries(Object.entries(current.firstByDate || {})
+        .filter(([, id]) => activities.has(id)));
+      if (firstTodayChanged) {
+        if (activities.has(firstToday)) firstByDate[today.date] = firstToday;
+        else delete firstByDate[today.date];
+      }
+      next.routine = {
+        wake, bed, commitments: [...commitments.values()],
+        activities: [...activities.values()].map(({schedulePriority, ...activity}) => activity),
+        firstActivityId: activities.has(firstEveryDay) ? firstEveryDay : undefined,
+        firstByDate,
+      };
       next.legacy = Boolean(profile?.legacy);
     }
 

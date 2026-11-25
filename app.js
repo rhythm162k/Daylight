@@ -131,8 +131,12 @@ function range({start, end}) {
   return `${startLabel}–${endTime} ${endPeriod}${nextDay}`;
 }
 
-let selected = routineDate(new Date());
-let todayKey = dates.dateKey(selected);
+const initialDay = routineDate(new Date());
+let todayKey = dates.dateKey(initialDay);
+const savedPreview = history.state?.daylightPreview;
+let selected = savedPreview > todayKey
+  ? weekOf(initialDay).find(date => dates.dateKey(date) === savedPreview) || initialDay
+  : initialDay;
 
 function readDone() {
   try {
@@ -247,23 +251,58 @@ function renderTotals(items, done, activities) {
   }).join('');
 }
 
+function renderFuturePlan(date) {
+  const panel = byId('future-plan');
+  const joke = byId('future-joke');
+  if (panel.dataset.date === date) return;
+  panel.dataset.date = date;
+  joke.textContent = 'Finding a dad joke…';
+  dadJokeFor(date).then(text => {
+    if (panel.dataset.date === date && !panel.hidden) joke.textContent = text;
+  });
+}
+
 function render(focusId, now = new Date()) {
   const today = routineDate(now);
   const index = weekdays.indexOf(dates.shortDay.format(selected));
-  const isToday = dates.dateKey(selected) === dates.dateKey(today);
-  const plan = profile ? dayPlan(profile, index, dates.dateKey(selected)) : null;
-  const items = plan?.items || [];
-  const done = readDone();
+  const currentDate = dates.dateKey(today);
+  const selectedDate = dates.dateKey(selected);
+  const isToday = selectedDate === currentDate;
+  const future = selectedDate > currentDate;
+  const preview = future ? selectedDate : null;
+  if ((history.state?.daylightPreview ?? null) !== preview) {
+    history.replaceState({...history.state, daylightPreview: preview}, '');
+  }
   byId('date').textContent = dates.fullDate.format(selected);
-  byId('theme').textContent = profile?.legacy ? plans[index].slice(0, 2).join(' · ') :
+  byId('theme').hidden = future;
+  byId('theme').textContent = future ? '' : profile?.legacy ? plans[index].slice(0, 2).join(' · ') :
     profile ? `Awake ${range({start: minuteOf(profile.routine.wake), end: minuteOf(profile.routine.bed) +
         (profile.routine.bed < profile.routine.wake ? dayMinutes : 0)})}` :
       'Make time for what matters to you.';
   byId('schedule-title').textContent = isToday ? 'Today’s plan' : weekdays[index] + '’s plan';
   byId('today').hidden = isToday;
-  document.querySelector('.week').innerHTML = weekOf(today).map((date, i) =>
-    `<button class="day" data-day="${i}" aria-pressed="${i === index}" aria-label="${dates.fullDate.format(date)}"${dates.dateKey(date) === dates.dateKey(today) ? ' aria-current="date"' : ''}><span>${weekdays[i]}</span><strong>${dates.dayNumber.format(date)}</strong></button>`
-  ).join('');
+  document.querySelector('.week').innerHTML = weekOf(today).map((date, i) => {
+    const key = dates.dateKey(date);
+    const label = dates.fullDate.format(date) + (key > currentDate ? ', unrevealed' : '');
+    return `<button class="day" data-day="${i}" aria-pressed="${i === index}" aria-label="${label}"${key === currentDate ? ' aria-current="date"' : ''}><span>${weekdays[i]}</span><strong>${dates.dayNumber.format(date)}</strong></button>`;
+  }).join('');
+  const futurePlan = byId('future-plan');
+  futurePlan.hidden = !future;
+  byId('day-sidebar').hidden = future;
+  byId('edit-routine').hidden = future;
+  if (future) {
+    byId('timeline').replaceChildren();
+    byId('plan-notes').replaceChildren();
+    byId('plan-notes').hidden = true;
+    renderFuturePlan(selectedDate);
+    return;
+  }
+  delete futurePlan.dataset.date;
+  byId('future-joke').textContent = '';
+
+  const plan = profile ? dayPlan(profile, index, selectedDate) : null;
+  const items = plan?.items || [];
+  const done = readDone();
   byId('timeline').innerHTML = items.length ? items.map(item => renderPlanRow(item, done)).join('') :
     '<p class="empty-plan">Add activities or commitments to fill your plan.</p>';
 
@@ -318,7 +357,7 @@ function showClock(now) {
 }
 
 const locationSettings = initializeLocation(profile?.legacy, () => {
-  if (profile?.prayer.mode === 'salah') renderSalah(readDone());
+  if (profile?.prayer.mode === 'salah' && byId('future-plan').hidden) renderSalah(readDone());
   refreshWeather();
 });
 const refreshWeather = initializeWeather(locationSettings);
@@ -328,11 +367,12 @@ function tick() {
   const today = routineDate(now);
   showClock(now);
   if (dates.dateKey(today) !== todayKey) {
-    selected = today;
+    const selectedKey = dates.dateKey(selected);
+    if (selectedKey <= todayKey || !weekOf(today).some(date => dates.dateKey(date) === selectedKey)) selected = today;
     todayKey = dates.dateKey(today);
     render(undefined, now);
   }
-  if (profile?.prayer.mode === 'salah') renderForbiddenNotice(now);
+  if (profile?.prayer.mode === 'salah' && byId('future-plan').hidden) renderForbiddenNotice(now);
   refreshWeather();
 }
 

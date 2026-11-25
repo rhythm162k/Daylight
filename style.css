@@ -387,6 +387,53 @@
 }
 
 .empty-plan { color: var(--muted); }
+.layout:has(.future-plan:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+.future-plan {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--subtle);
+}
+.future-plan-lines {
+  position: absolute;
+  inset: 12px 18px;
+  z-index: -1;
+  display: grid;
+  align-content: space-evenly;
+  filter: blur(5px);
+  opacity: .48;
+}
+.future-plan-lines i {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 36px;
+  padding-inline: 12px;
+  border: 1px solid var(--control-line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.future-plan-lines i::before,
+.future-plan-lines i::after { content: ""; height: 7px; border-radius: 6px; background: var(--muted); }
+.future-plan-lines i::before { width: 44px; opacity: .4; }
+.future-plan-lines i::after { width: 32%; opacity: .6; }
+.future-plan-lines i:nth-child(even)::after { width: 44%; }
+.future-plan-copy {
+  width: fit-content;
+  max-width: min(100%, 34rem);
+  padding: 16px 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+}
+.future-plan-copy .eyebrow { margin-bottom: 8px; }
+#future-joke { margin: 0; font-family: Georgia, serif; font-size: clamp(1.2rem, 3vw, 1.6rem); line-height: 1.4; }
 .plan-notes {
   margin: 0 0 14px;
   padding: 9px 12px 9px 28px;
@@ -511,6 +558,8 @@
 #settings-form :is(.one-time-date, .original-duration) { margin-top: 8px; }
 .day-options div { display: flex; flex-wrap: wrap; gap: 4px 9px; }
 .day-options label { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; }
+.first-activity-options { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.first-activity-options label { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; }
 #settings-form #custom-prayer-settings { margin-top: 12px; }
 #custom-prayer-settings p { margin: 6px 0 10px; }
 
