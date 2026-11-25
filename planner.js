@@ -63,13 +63,13 @@ function planDay(routine, prayer, day, date, original = []) {
   const additions = activities.filter(activity => !anchored.includes(activity));
   const inPlace = packActivities(freeSlots(wake, bed, [...fixed, ...anchoredItems]), additions);
   if (inPlace.activities.every(activity => !activity.remaining)) {
-    return {items: [...fixed, ...anchoredItems, ...inPlace.items].sort((a, b) => a.start - b.start),
+    return {items: timelineItems([...fixed, ...anchoredItems, ...inPlace.items]),
       activities, unscheduled: [], outside, conflicts: [...conflicts]};
   }
 
   const plan = fitActivities(slots, activities);
   return {
-    items: [...fixed, ...plan.items].sort((a, b) => a.start - b.start),
+    items: timelineItems([...fixed, ...plan.items]),
     activities,
     unscheduled: plan.activities.flatMap((activity, index) => {
       const remaining = activities[index].minutes - activity.minutes + activity.remaining;
@@ -78,6 +78,24 @@ function planDay(routine, prayer, day, date, original = []) {
     outside,
     conflicts: [...conflicts],
   };
+}
+
+function timelineItems(items) {
+  items.sort((a, b) => a.start - b.start);
+  const sessions = new Map();
+  for (const item of items) {
+    if (!item.activityId) continue;
+    if (!sessions.has(item.activityId)) sessions.set(item.activityId, []);
+    sessions.get(item.activityId).push(item);
+  }
+  for (const group of sessions.values()) {
+    if (group.length < 2) continue;
+    group.forEach((item, index) => {
+      item.tag = item.category || item.title;
+      item.title += ' · Focus ' + (index + 1);
+    });
+  }
+  return items;
 }
 
 function freeSlots(wake, bed, fixed, conflicts) {

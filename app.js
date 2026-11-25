@@ -223,9 +223,10 @@ function renderPlanRow(item, done) {
   const breaks = item.breaks?.length ? '<ul class="session-breaks">' +
     item.breaks.map(pause => `<li>Walk or stretch · ${range(pause)}</li>`).join('') + '</ul>' : '';
   const label = item.activityId ? item.title + ' · ' + range(item) : item.title;
+  const tag = item.tag || item.category;
   return `<article class="row" data-done="${done.has(item.id)}">
     <div class="time">${range(item)}</div>
-    <div><h3>${escapeHtml(item.title)}${item.category ? ` <span class="tag">${escapeHtml(item.category)}</span>` : ''}</h3>
+    <div><h3>${escapeHtml(item.title)}${tag ? ` <span class="tag">${escapeHtml(tag)}</span>` : ''}</h3>
     ${notes.length ? `<p>${escapeHtml(notes.join(' · '))}</p>` : ''}${breaks}</div>
     ${item.id ? checkbox(item.id, label, done) : ''}
   </article>`;

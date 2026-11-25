@@ -239,14 +239,21 @@
             <div class="settings-section">
               <h3>Fixed commitments</h3>
               <p>Block out work, commuting, appointments, or other time you’re unavailable.</p>
+              <div class="entry-tools">
+                <label>Search commitments
+                  <input id="commitment-search" type="search" placeholder="Search by name" autocomplete="off" />
+                </label>
+                <button class="secondary-button" id="add-commitment" type="button">
+                  <svg aria-hidden="true"><use href="#icon-plus" /></svg> Add commitment
+                </button>
+              </div>
+              <ul class="entry-results" id="commitment-results" aria-label="Matching commitments" hidden></ul>
+              <p class="entry-search-status" id="commitment-search-status" role="status"></p>
               <div id="commitment-settings"></div>
-              <button class="icon-button add-row" id="add-commitment" type="button" aria-label="Add commitment" title="Add commitment">
-                <svg aria-hidden="true"><use href="#icon-plus" /></svg>
-              </button>
             </div>
             <div class="settings-section">
               <h3>Activities</h3>
-              <div class="activity-tools">
+              <div class="entry-tools">
                 <label>Search activities
                   <input id="activity-search" type="search" placeholder="Search by name" autocomplete="off" />
                 </label>
@@ -254,8 +261,8 @@
                   <svg aria-hidden="true"><use href="#icon-plus" /></svg> Add activity
                 </button>
               </div>
-              <ul id="activity-results" aria-label="Matching activities" hidden></ul>
-              <p id="activity-search-status" role="status"></p>
+              <ul class="entry-results" id="activity-results" aria-label="Matching activities" hidden></ul>
+              <p class="entry-search-status" id="activity-search-status" role="status"></p>
               <div id="activity-settings"></div>
             </div>
           </fieldset>

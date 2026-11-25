@@ -24,17 +24,11 @@ function initializeSettings(profile, onSave) {
   const sleepFields = get('sleep-fields');
   const wakeTime = get('wake-time');
   const bedTime = get('bed-time');
-  const activityRows = get('activity-settings');
-  const activitySearch = get('activity-search');
-  const activityResults = get('activity-results');
-  const activitySearchStatus = get('activity-search-status');
-  const commitmentRows = get('commitment-settings');
   const prayerRows = get('prayer-settings-rows');
   const mode = get('prayer-mode');
   const custom = get('custom-prayer-settings');
   const fit = get('settings-fit');
   const save = get('save-settings');
-  let existingActivities;
   let confirmedFit;
   let trigger;
 
@@ -44,7 +38,7 @@ function initializeSettings(profile, onSave) {
     save.textContent = profile ? 'Save settings' : 'Create my plan';
   }
   form.addEventListener('input', event => {
-    if (event.target !== activitySearch) resetFit();
+    if (event.target.type !== 'search') resetFit();
   });
   sleepSettings.addEventListener('toggle', () => {
     sleepFields.disabled = !sleepSettings.open;
@@ -73,7 +67,7 @@ function initializeSettings(profile, onSave) {
     return row;
   }
 
-  function activityRow(entry = {}) {
+  function activityRow(entry, onDelete) {
     const row = fields(entry.id, 'Activity', `
       <div class="settings-grid">
         <label>Activity name <input data-field="name" required maxlength="80" placeholder="e.g. Study" /></label>
@@ -105,7 +99,7 @@ function initializeSettings(profile, onSave) {
       name: entry.name, minutes: entry.minutes,
       type: entry.source && entry.originalSession !== false ? 'original' : entry.split === false ? 'single' : 'split',
       frequency: entry.date ? 'today' : entry.days ? 'weekly' : 'daily',
-    }, deleteActivity);
+    }, onDelete);
     const days = row.querySelector('.day-options');
     const date = row.querySelector('.one-time-date');
     const frequency = row.querySelector('[data-field="frequency"]');
@@ -123,32 +117,47 @@ function initializeSettings(profile, onSave) {
     return row;
   }
 
-  function findActivityRow(id) {
-    return [...activityRows.children].find(row => row.dataset.id === id);
-  }
+  function searchableEntries(kind, plural, makeRow) {
+    const rows = get(kind + '-settings');
+    const search = get(kind + '-search');
+    const results = get(kind + '-results');
+    const status = get(kind + '-search-status');
+    let existing = new Map();
 
-  function deleteActivity(id) {
-    existingActivities.delete(id);
-    findActivityRow(id)?.remove();
-    resetFit();
-    renderActivityResults();
-    activitySearch.focus();
-  }
+    function findRow(id) {
+      return [...rows.children].find(row => row.dataset.id === id);
+    }
 
-  function renderActivityResults() {
-    const query = activitySearch.value.trim().toLocaleLowerCase();
-    activityResults.replaceChildren();
-    if (query) {
-      for (const entry of existingActivities.values()) {
-        const draft = findActivityRow(entry.id);
+    function deleteEntry(id) {
+      existing.delete(id);
+      findRow(id)?.remove();
+      resetFit();
+      renderResults();
+      search.focus();
+    }
+
+    function openRow(entry = {}) {
+      let row = findRow(entry.id);
+      if (!row) {
+        row = makeRow(entry, deleteEntry);
+        rows.prepend(row);
+      }
+      row.querySelector('[data-field="name"]').focus();
+    }
+
+    function renderResults() {
+      const query = search.value.trim().toLocaleLowerCase();
+      results.replaceChildren();
+      for (const entry of query ? existing.values() : []) {
+        const draft = findRow(entry.id);
         const name = draft?.querySelector('[data-field="name"]').value.trim() || entry.name;
         if (!name.toLocaleLowerCase().includes(query)) continue;
         const result = document.createElement('li');
-        result.innerHTML = `<strong></strong><div class="activity-actions">
-          <button type="button" class="icon-button" title="Edit activity">
+        result.innerHTML = `<strong></strong><div class="entry-actions">
+          <button type="button" class="icon-button" title="Edit ${kind}">
             <svg aria-hidden="true"><use href="#icon-edit" /></svg>
           </button>
-          <button type="button" class="icon-button" title="Delete activity">
+          <button type="button" class="icon-button" title="Delete ${kind}">
             <svg aria-hidden="true"><use href="#icon-delete" /></svg>
           </button>
         </div>`;
@@ -156,28 +165,43 @@ function initializeSettings(profile, onSave) {
         const [edit, remove] = result.querySelectorAll('button');
         edit.setAttribute('aria-label', `Edit ${name}`);
         remove.setAttribute('aria-label', `Delete ${name}`);
-        edit.addEventListener('click', () => {
-          let row = findActivityRow(entry.id);
-          if (!row) row = activityRows.appendChild(activityRow(entry));
-          row.querySelector('[data-field="name"]').focus();
-        });
-        remove.addEventListener('click', () => deleteActivity(entry.id));
-        activityResults.append(result);
+        edit.addEventListener('click', () => openRow(entry));
+        remove.addEventListener('click', () => deleteEntry(entry.id));
+        results.append(result);
       }
+      results.hidden = !results.children.length;
+      status.textContent = query && results.hidden ? `No matching ${plural}.` : '';
     }
-    activityResults.hidden = !activityResults.children.length;
-    activitySearchStatus.textContent = query && activityResults.hidden ? 'No matching activities.' : '';
+
+    get('add-' + kind).addEventListener('click', () => {
+      resetFit();
+      openRow();
+    });
+    search.addEventListener('input', renderResults);
+    search.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.isComposing) event.preventDefault();
+    });
+    rows.addEventListener('input', event => {
+      if (event.target.dataset.field === 'name' && existing.has(event.target.closest('.settings-row').dataset.id)) {
+        renderResults();
+      }
+    });
+
+    return {
+      open(entries) {
+        existing = new Map(entries.map(entry => [entry.id, entry]));
+        rows.replaceChildren();
+        search.value = '';
+        renderResults();
+      },
+      findRow,
+      saved: () => new Map(existing),
+      drafts: () => [...rows.children].reverse(),
+    };
   }
 
-  activitySearch.addEventListener('input', renderActivityResults);
-  activitySearch.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.isComposing) event.preventDefault();
-  });
-  activityRows.addEventListener('input', event => {
-    if (event.target.dataset.field === 'name' && existingActivities.has(event.target.closest('.settings-row').dataset.id)) {
-      renderActivityResults();
-    }
-  });
+  const activityEditor = searchableEntries('activity', 'activities', activityRow);
+  const commitmentEditor = searchableEntries('commitment', 'commitments', commitmentRow);
 
   function weekdayFields() {
     return `<fieldset class="day-options">
@@ -187,14 +211,14 @@ function initializeSettings(profile, onSave) {
     </fieldset>`;
   }
 
-  function commitmentRow(entry = {}) {
+  function commitmentRow(entry, onDelete) {
     const row = fields(entry.id, 'Commitment', `
       <div class="settings-grid">
         <label class="wide">Commitment name <input data-field="name" required maxlength="80" placeholder="e.g. Work or commute" /></label>
         <label>Starts <input data-field="start" type="time" required /></label>
         <label>Ends <input data-field="end" type="time" required /></label>
       </div>
-      ${weekdayFields()}`, {name: entry.name, start: entry.start, end: entry.end});
+      ${weekdayFields()}`, {name: entry.name, start: entry.start, end: entry.end}, onDelete);
     for (const input of row.querySelectorAll('[type="checkbox"]')) {
       input.checked = !entry.days || entry.days.includes(Number(input.value));
     }
@@ -219,17 +243,12 @@ function initializeSettings(profile, onSave) {
     return row;
   }
 
-  function bindAdd(id, container, makeRow) {
-    get(id).addEventListener('click', () => {
-      const row = makeRow();
-      container.append(row);
-      resetFit();
-      row.querySelector('input').focus();
-    });
-  }
-  bindAdd('add-activity', activityRows, activityRow);
-  bindAdd('add-commitment', commitmentRows, commitmentRow);
-  bindAdd('add-prayer', prayerRows, prayerRow);
+  get('add-prayer').addEventListener('click', () => {
+    const row = prayerRow();
+    prayerRows.append(row);
+    resetFit();
+    row.querySelector('input').focus();
+  });
 
   function updateMode() {
     custom.disabled = mode.value !== 'custom';
@@ -256,11 +275,8 @@ function initializeSettings(profile, onSave) {
     sleepFields.disabled = !firstRun;
     wakeTime.value = routine.wake;
     bedTime.value = routine.bed;
-    commitmentRows.replaceChildren(...routine.commitments.map(commitmentRow));
-    existingActivities = new Map(routine.activities.map(entry => [entry.id, entry]));
-    activityRows.replaceChildren();
-    activitySearch.value = '';
-    renderActivityResults();
+    commitmentEditor.open(routine.commitments);
+    activityEditor.open(routine.activities);
     const prayer = profile?.prayer || noPrayer;
     mode.value = prayer.mode;
     get('custom-prayer-title').value = prayer.title || 'Prayer';
@@ -300,7 +316,7 @@ function initializeSettings(profile, onSave) {
       for (const activity of proposed.unscheduled) {
         const scheduled = activity.minutes - activity.remaining;
         if (changed.has(activity.id) || (!scheduled && activity.remaining > (previous.get(activity.id) || 0))) {
-          const row = findActivityRow(activity.id);
+          const row = activityEditor.findRow(activity.id);
           return showError(`${activity.name} needs ${activity.minutes} min on ${label === 'Today' ? 'today’s plan' : label}, and ${scheduled} min fit with sleep and breaks reserved. Try fewer minutes, another day, or a split session.`,
             row?.querySelector('[data-field="minutes"]'));
         }
@@ -342,23 +358,23 @@ function initializeSettings(profile, onSave) {
           wake ? bedTime : wakeTime,
         );
       }
-      const commitments = [];
-      for (const row of commitmentRows.children) {
+      const commitments = commitmentEditor.saved();
+      for (const row of commitmentEditor.drafts()) {
         const {name, start, end} = values(row);
         const days = [...row.querySelectorAll(':checked')].map(input => Number(input.value));
         if (!name) return showError('Enter a commitment name.', row.querySelector('[data-field="name"]'));
         if (start === end) return showError('Choose a different end time for ' + name + '.', row.querySelector('[data-field="end"]'));
         if (!days.length) return showError('Select at least one day for ' + name + '.', row.querySelector('[type="checkbox"]'));
-        commitments.push({id: row.dataset.id, name, start, end, days});
+        commitments.set(row.dataset.id, {id: row.dataset.id, name, start, end, days});
       }
-      const activities = new Map(existingActivities);
+      const activities = activityEditor.saved();
       const priority = Math.max(0, ...current.activities.map(activity => activity.priority || 0)) + 1;
       const today = todayForRoutine({wake, bed}, now);
-      for (const row of activityRows.children) {
+      for (const row of activityEditor.drafts()) {
         const {name, minutes, type, frequency} = values(row);
         if (!name) return showError('Enter an activity name.', row.querySelector('[data-field="name"]'));
         const id = row.dataset.id;
-        const before = existingActivities.get(id);
+        const before = activities.get(id);
         const activity = {id, name, minutes: Number(minutes), split: type === 'split'};
         if (before?.source) {
           activity.source = before.source;
@@ -382,7 +398,7 @@ function initializeSettings(profile, onSave) {
         if (!activity.date && (timingChanged || before.priority)) activity.priority = timingChanged ? priority : before.priority;
         activities.set(id, activity);
       }
-      next.routine = {wake, bed, commitments, activities: [...activities.values()]};
+      next.routine = {wake, bed, commitments: [...commitments.values()], activities: [...activities.values()]};
       next.legacy = Boolean(profile?.legacy);
     }
 
