@@ -20,6 +20,10 @@ function initializeSettings(profile, onSave) {
   const dialog = get('settings-dialog');
   const form = get('settings-form');
   const error = get('settings-error');
+  const sleepSettings = get('sleep-settings');
+  const sleepFields = get('sleep-fields');
+  const wakeTime = get('wake-time');
+  const bedTime = get('bed-time');
   const activityRows = get('activity-settings');
   const activitySearch = get('activity-search');
   const activityResults = get('activity-results');
@@ -41,6 +45,9 @@ function initializeSettings(profile, onSave) {
   }
   form.addEventListener('input', event => {
     if (event.target !== activitySearch) resetFit();
+  });
+  sleepSettings.addEventListener('toggle', () => {
+    sleepFields.disabled = !sleepSettings.open;
   });
 
   function fields(id, label, markup, values, onDelete) {
@@ -245,8 +252,10 @@ function initializeSettings(profile, onSave) {
     intro.hidden = !intro.textContent;
     resetFit();
     const routine = editableRoutine(profile);
-    get('wake-time').value = routine.wake;
-    get('bed-time').value = routine.bed;
+    sleepSettings.open = firstRun;
+    sleepFields.disabled = !firstRun;
+    wakeTime.value = routine.wake;
+    bedTime.value = routine.bed;
     commitmentRows.replaceChildren(...routine.commitments.map(commitmentRow));
     existingActivities = new Map(routine.activities.map(entry => [entry.id, entry]));
     activityRows.replaceChildren();
@@ -323,9 +332,16 @@ function initializeSettings(profile, onSave) {
     const current = editableRoutine(profile);
     const now = new Date();
     if (!get('routine-settings').disabled) {
-      const wake = get('wake-time').value;
-      const bed = get('bed-time').value;
-      if (wake === bed) return showError('Choose a different bedtime and wake time.', get('bed-time'));
+      const wake = wakeTime.value;
+      const bed = bedTime.value;
+      if (!wake || !bed || wake === bed) {
+        sleepSettings.open = true;
+        sleepFields.disabled = false;
+        return showError(
+          !wake || !bed ? 'Enter your wake time and bedtime.' : 'Choose a different bedtime and wake time.',
+          wake ? bedTime : wakeTime,
+        );
+      }
       const commitments = [];
       for (const row of commitmentRows.children) {
         const {name, start, end} = values(row);

@@ -365,26 +365,39 @@ Promise.allSettled((splash.getAnimations?.() || []).map(animation => animation.f
 });
 
 function initializeRefresh() {
-  const reload = () => window.location.reload();
-  byId('refresh-button').addEventListener('click', reload);
-  if (!navigator.standalone && !matchMedia('(display-mode: standalone)').matches) return;
-  document.documentElement.classList.add('standalone-refresh');
+  if (!navigator.maxTouchPoints && !('ontouchstart' in window)) return;
+  const root = document.documentElement;
+  root.classList.add('touch-refresh');
 
-  const status = byId('pull-refresh-status');
   const settings = byId('settings-dialog');
-  const threshold = 72;
+  const armDistance = 58;
+  const maxDistance = 118;
   let start;
-  let ready = false;
+  let pulling = false;
 
-  function reset() {
+  function movePage(distance) {
+    root.style.setProperty('--pull-distance', distance + 'px');
+    root.style.setProperty('--pull-progress', Math.min(distance / armDistance, 1));
+  }
+
+  function finish(refresh = false) {
     start = undefined;
-    ready = false;
-    status.hidden = true;
+    if (!pulling) return;
+    pulling = false;
+    if (refresh) {
+      root.dataset.pull = 'refreshing';
+      movePage(armDistance);
+      setTimeout(() => window.location.reload(), 180);
+    } else {
+      delete root.dataset.pull;
+      movePage(0);
+    }
   }
 
   document.addEventListener('touchstart', event => {
-    reset();
-    if (event.touches.length === 1 && window.scrollY === 0 && !settings.open && splash.hidden) {
+    finish();
+    if (event.touches.length === 1 && window.scrollY <= 0 && !settings.open &&
+        splash.hidden && root.dataset.pull !== 'refreshing') {
       start = event.touches[0];
     }
   }, {passive: true});
@@ -392,29 +405,30 @@ function initializeRefresh() {
   document.addEventListener('touchmove', event => {
     if (!start) return;
     if (event.touches.length !== 1 || !event.cancelable || settings.open || window.scrollY > 0) {
-      reset();
+      finish();
       return;
     }
     const touch = event.touches[0];
     const down = touch.clientY - start.clientY;
     const across = Math.abs(touch.clientX - start.clientX);
-    if (Math.max(Math.abs(down), across) < 6 && status.hidden) return;
-    if (down <= across) {
-      reset();
-      return;
+    if (!pulling) {
+      if (Math.max(Math.abs(down), across) < 6) return;
+      if (down <= across) {
+        finish();
+        return;
+      }
+      pulling = true;
     }
     event.preventDefault();
-    ready = down >= threshold;
-    status.textContent = ready ? 'Release to refresh' : 'Pull down to refresh';
-    status.hidden = false;
+    const distance = maxDistance * (1 - Math.exp(-Math.max(0, down) / maxDistance));
+    root.dataset.pull = distance >= armDistance ? 'ready' : 'dragging';
+    movePage(distance);
   }, {passive: false});
 
   document.addEventListener('touchend', () => {
-    const shouldReload = ready && !settings.open;
-    reset();
-    if (shouldReload) reload();
+    finish(root.dataset.pull === 'ready' && !settings.open);
   }, {passive: true});
-  document.addEventListener('touchcancel', reset, {passive: true});
+  document.addEventListener('touchcancel', () => finish(), {passive: true});
 }
 
 initializeRefresh();

@@ -282,22 +282,58 @@
 }
 .icon-button:disabled { opacity: .55; cursor: wait; }
 .settings-button { width: 44px; height: 44px; }
-#refresh-button { width: 44px; height: 44px; }
-.standalone-refresh { overscroll-behavior-y: none; }
-#pull-refresh-status {
+.touch-refresh { overscroll-behavior-y: none; }
+.touch-refresh body > :is(header, main) {
+  transform: translateY(var(--pull-distance, 0px));
+  transition: transform 260ms var(--interaction-ease);
+}
+#pull-refresh-indicator { display: none; }
+.touch-refresh #pull-refresh-indicator {
+  display: grid;
+  place-items: center;
   position: fixed;
-  z-index: 3;
-  top: max(8px, env(safe-area-inset-top));
+  top: 0;
   left: 50%;
-  translate: -50% 0;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, calc(var(--pull-distance, 0px) / 2 - 50%));
+  opacity: clamp(0, calc(var(--pull-progress, 0) * 2 - .45), 1);
   pointer-events: none;
-  white-space: nowrap;
-  padding: 8px 14px;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 50%;
   background: var(--surface);
   color: var(--green);
-  font-size: .85rem;
+  transition: transform 260ms var(--interaction-ease), opacity 200ms ease-out;
+}
+#pull-refresh-indicator svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: rotate(calc(var(--pull-progress, 0) * 135deg));
+}
+:is([data-pull="dragging"], [data-pull="ready"]) :is(body > header, body > main, #pull-refresh-indicator) {
+  transition: none;
+}
+:is([data-pull="ready"], [data-pull="refreshing"]) #pull-refresh-indicator {
+  background: var(--selection);
+  color: var(--selection-ink);
+}
+[data-pull="refreshing"] #pull-refresh-indicator svg {
+  animation: pull-spin 600ms linear infinite;
+}
+@keyframes pull-spin {
+  from { transform: rotate(135deg); }
+  to { transform: rotate(495deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .touch-refresh body > :is(header, main),
+  .touch-refresh #pull-refresh-indicator { transition: none; }
+  [data-pull="refreshing"] #pull-refresh-indicator svg { animation: none; }
 }
 .complete-button {
   display: inline-flex;
@@ -432,6 +468,14 @@
 }
 #settings-form fieldset:disabled { color: var(--muted); }
 #settings-form input[type="checkbox"] { accent-color: var(--selection); }
+.sleep-settings > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--green);
+  font-size: .85rem;
+  font-weight: 650;
+}
+#settings-form #sleep-fields { margin-top: 8px; }
 .settings-section { margin-top: 16px; }
 .settings-section h3 { margin: 0 0 3px; font-size: .92rem; }
 .settings-section p { margin-bottom: 8px; }
