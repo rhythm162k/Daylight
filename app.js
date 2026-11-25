@@ -31,8 +31,7 @@ function weekOf(date) {
   return weekdays.map((_, index) => shiftDay(date, index - offset));
 }
 
-function routineDate(now) {
-  const routine = profile?.routine;
+function routineDate(now, routine = profile?.routine) {
   if (routine && routine.bed < routine.wake && dates.minuteClock.format(now) < routine.bed) {
     return shiftDay(now, -1);
   }
@@ -55,7 +54,7 @@ const plans = [
 ];
 const prayerNames = ['Fajr','Dhuhr / Jumu’ah on Friday','Asr','Maghrib','Isha'];
 const block = (id, start, end, title, detail, category = '') => ({id, start, end, title, detail, category});
-function routine(index) {
+function originalDay(index) {
   const [, , focus, video, familyFirst, jobsLate] = plans[index];
   const friday = index === 4;
   const afternoon = friday ? 840 : 825;
@@ -90,7 +89,33 @@ function routine(index) {
     block('dinner', 1155, 1200, 'Dinner', 'Eat and take a break.'),
     block('series', 1200, 1250, 'TV series', 'Sit down for an episode or finish one you started.'),
     block('winddown', 1275, 1335, 'Wind down', 'Get ready for bed and aim to sleep around 10:15 PM.'),
-  ].sort((a,b) => a.start-b.start);
+  ].map(item => ({...item, protected: ['morning', 'lunch', 'dinner', 'winddown'].includes(item.id)}))
+    .sort((a,b) => a.start-b.start);
+}
+
+function editableRoutine(current) {
+  if (current?.routine || !current?.legacy) return current?.routine || defaultRoutine;
+  const activities = originalDay(0).filter(item => !item.protected).map(item => ({
+    id: item.id, source: item.id, name: item.title, minutes: item.end - item.start, split: false,
+    weeklyMinutes: weekdays.map((_, day) => {
+      const block = originalDay(day).find(candidate => candidate.id === item.id);
+      return block.end - block.start;
+    }),
+  }));
+  return {wake: '05:40', bed: '22:15', commitments: [], activities};
+}
+
+function dayPlan(current, day, date) {
+  return planDay(editableRoutine(current), current.prayer, day, date, current.legacy ? originalDay(day) : []);
+}
+
+function todayForRoutine(routine, now = new Date()) {
+  const today = routineDate(now, routine);
+  const date = dates.dateKey(today);
+  return {
+    date, day: weekdays.indexOf(dates.shortDay.format(today)),
+    minute: minuteOf(dates.minuteClock.format(now)) + (date === dates.dateKey(now) ? 0 : dayMinutes),
+  };
 }
 function time(minutes) {
   minutes %= dayMinutes;
@@ -206,13 +231,17 @@ function renderPlanRow(item, done) {
   </article>`;
 }
 
-function renderTotals(items, done) {
+function renderTotals(items, done, activities) {
   const groups = profile?.legacy
-    ? [['Roadmap', 'Roadmap'], ['Job search', 'Jobs'], ['WattaDumb', 'YouTube']]
-    : (profile?.routine.activities || []).map(activity => [activity.name, activity.id, activity.minutes]);
+    ? [
+        ...[['Roadmap', 'Roadmap'], ['Job search', 'Jobs'], ['WattaDumb', 'YouTube']]
+          .filter(([, key]) => items.some(item => item.category === key)),
+        ...activities.filter(activity => !activity.source).map(activity => [activity.name, activity.id, activity.minutes]),
+      ]
+    : activities.map(activity => [activity.name, activity.id, activity.minutes]);
   byId('totals').hidden = !groups.length;
   byId('totals').innerHTML = groups.map(([label, key, goal]) => {
-    const blocks = items.filter(item => (item.activityId ?? item.category) === key);
+    const blocks = items.filter(item => item.activityId === key || item.category === key);
     const minutes = list => list.reduce((sum, item) => sum + (item.minutes ?? item.end - item.start), 0);
     return `<div><dt>${escapeHtml(label)}</dt><dd>${minutes(blocks.filter(item => done.has(item.id)))} / ${goal ?? minutes(blocks)} min</dd></div>`;
   }).join('');
@@ -222,8 +251,8 @@ function render(focusId, now = new Date()) {
   const today = routineDate(now);
   const index = weekdays.indexOf(dates.shortDay.format(selected));
   const isToday = dates.dateKey(selected) === dates.dateKey(today);
-  const plan = profile?.routine ? planDay(profile.routine, profile.prayer, index) : null;
-  const items = profile?.legacy ? routine(index) : plan?.items || [];
+  const plan = profile ? dayPlan(profile, index, dates.dateKey(selected)) : null;
+  const items = plan?.items || [];
   const done = readDone();
   byId('date').textContent = dates.fullDate.format(selected);
   byId('theme').textContent = profile?.legacy ? plans[index].slice(0, 2).join(' · ') :
@@ -239,8 +268,11 @@ function render(focusId, now = new Date()) {
     '<p class="empty-plan">Add activities or commitments to fill your plan.</p>';
 
   const notes = plan ? [
-    ...plan.unscheduled.map(activity => activity.name + ' · ' + activity.remaining +
-      (activity.split ? ' min didn’t fit.' : ' min need one free session, including breaks.')),
+    ...plan.unscheduled.map(activity => {
+      const scheduled = activity.minutes - activity.remaining;
+      return scheduled ? `${activity.name} · ${scheduled} of ${activity.minutes} min scheduled.` :
+        `${activity.name} · ${activity.minutes} min didn’t fit within waking hours and breaks.`;
+    }),
     ...plan.outside.map(name => name + ' · Scheduled partly or entirely outside your waking hours.'),
     ...(plan.conflicts.length ? ['Fixed times overlap · ' + plan.conflicts.join(', ')] : []),
   ] : [];
@@ -262,7 +294,7 @@ function render(focusId, now = new Date()) {
   byId('complete').onclick = next ? () => toggle(next.id) : null;
   byId('fraction').textContent = count + ' / ' + trackable.length;
   byId('progress').value = trackable.length ? count / trackable.length : 0;
-  renderTotals(items, done);
+  renderTotals(items, done, plan?.activities || []);
   if (focusId) document.querySelector(`[data-check="${CSS.escape(focusId)}"]`)?.focus();
 }
 

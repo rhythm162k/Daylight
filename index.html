@@ -37,7 +37,9 @@
       </symbol>
       <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
       <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14" /></symbol>
-      <symbol id="icon-remove" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></symbol>
+      <symbol id="icon-delete" viewBox="0 0 24 24">
+        <path d="M4 6h16M9 6V4h6v2M6 6l1 14h10l1-14M10 10v6m4-6v6" />
+      </symbol>
     </svg>
     <div class="launch-splash" id="launch-splash" aria-hidden="true">
       <div class="launch-mark">
@@ -220,7 +222,6 @@
         <p id="settings-intro"></p>
         <fieldset id="routine-settings">
           <legend>Daily routine</legend>
-          <label class="conversion" hidden><input id="use-custom-routine" type="checkbox" /> Replace my current routine</label>
           <fieldset id="routine-fields">
             <div class="settings-grid">
               <label>Wake time <input id="wake-time" type="time" required /></label>
@@ -235,12 +236,18 @@
               </button>
             </div>
             <div class="settings-section">
-              <h3>Daily activities</h3>
-              <p>Enter active minutes. A single session includes a 5-minute break after every 30 minutes of work.</p>
+              <h3>Activities</h3>
+              <div class="activity-tools">
+                <label>Search activities
+                  <input id="activity-search" type="search" placeholder="Search by name" autocomplete="off" />
+                </label>
+                <button class="secondary-button" id="add-activity" type="button">
+                  <svg aria-hidden="true"><use href="#icon-plus" /></svg> Add activity
+                </button>
+              </div>
+              <ul id="activity-results" aria-label="Matching activities" hidden></ul>
+              <p id="activity-search-status" role="status"></p>
               <div id="activity-settings"></div>
-              <button class="icon-button add-row" id="add-activity" type="button" aria-label="Add activity" title="Add activity">
-                <svg aria-hidden="true"><use href="#icon-plus" /></svg>
-              </button>
             </div>
           </fieldset>
         </fieldset>
@@ -265,6 +272,10 @@
           </fieldset>
         </fieldset>
         <p id="settings-error" class="settings-error" role="alert" hidden></p>
+        <div id="settings-fit" role="status" hidden>
+          <p>To fit this plan, Daylight will shorten these activities.</p>
+          <ul></ul>
+        </div>
         <div class="settings-footer">
           <button class="secondary-button" id="cancel-settings" type="button">Cancel</button>
           <button class="primary-button" id="save-settings" type="submit">Save settings</button>

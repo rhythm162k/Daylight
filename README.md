@@ -5,7 +5,7 @@ Daylight builds a daily plan around your waking hours, fixed commitments, and th
 ## Set up your day
 
 - **Routine.** Set your usual wake time and bedtime, then add fixed commitments such as work or commuting. Choose which days each commitment repeats.
-- **Activities.** Enter active minutes for each activity. Choose one session with a five-minute break after each 30 minutes of work, or split the activity into blocks of up to two hours. The plan shows any minutes that could not be scheduled.
+- **Activities.** Add or remove activities in **Edit routine**. Set active minutes and choose every day, selected weekdays, or today only. Choose one session with a five-minute break after each 30 minutes of work, or split the activity into blocks of up to two hours. When time is tight, Daylight previews which activities it can shorten before you save. Sleep and reserved breaks are protected.
 - **Prayer.** Choose no prayer section, the built-in Bangladesh Salah timetable, or a custom section. Giving a custom entry a time reserves space in the plan. Untimed entries appear in the prayer checklist.
 - **Progress.** Use the weekly calendar to view a day and check off activities or prayers. Edit the routine from the plan, or use **Settings** to change the routine and prayer preferences.
 
@@ -27,7 +27,7 @@ Open [http://localhost:8000](http://localhost:8000). Serving the folder over HTT
 
 [GitHub Pages publishing guide](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
-Your settings and checkmarks are stored in your browser for the site’s address. On the original address, browsers with existing checkmarks or district preferences retain the original weekly plan until they choose to replace it. That original routine is included in the static source for compatibility. A new address starts with its own storage.
+Your settings and checkmarks are stored in your browser for the site’s address. On the original address, browsers with existing checkmarks or district preferences can edit the original weekly plan directly. A new address starts with its own storage.
 
 Generated routines use the browser’s local time. Salah cutoffs and live forbidden periods use Bangladesh time. The hero shows Dhaka weather by default. Use the location pin to update the forecast with your browser’s location permission. Daylight remembers approximate coordinates on this device. A matched Bangladesh district also updates the optional Salah timetable.
 
