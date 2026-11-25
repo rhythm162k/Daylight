@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f6ef" />
     <meta
       name="description"
-      content="Your personal weekly rhythm, with time for focus, faith, and family."
+      content="Build a daily routine around your time, priorities, and optional prayer practice."
     />
     <title>Daylight · My routine</title>
     <script src="theme.js"></script>
@@ -15,10 +15,39 @@
     <script src="district-names.js" defer></script>
     <script src="prayer-timetable.js" defer></script>
     <script src="prayers.js" defer></script>
+    <script src="location.js" defer></script>
     <script src="weather.js" defer></script>
+    <script src="planner.js" defer></script>
+    <script src="settings.js" defer></script>
     <script src="app.js" defer></script>
   </head>
   <body>
+    <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <symbol id="icon-edit" viewBox="0 0 24 24">
+        <path d="M13 20h8M16 4l4 4M4 20l4-.9L20.5 6.6a1.4 1.4 0 0 0 0-2L19.4 3.5a1.4 1.4 0 0 0-2 0L4.9 16z" />
+      </symbol>
+      <symbol id="icon-today" viewBox="0 0 24 24">
+        <rect x="4" y="6" width="16" height="15" rx="2" />
+        <path d="M8 3v6m8-6v6M4 11h16" />
+        <circle cx="12" cy="15.75" r="1" />
+      </symbol>
+      <symbol id="icon-location" viewBox="0 0 24 24">
+        <path d="M19 10c0 5-7 11-7 11s-7-6-7-11a7 7 0 1 1 14 0Z" />
+        <circle cx="12" cy="10" r="2.25" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14" /></symbol>
+      <symbol id="icon-remove" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></symbol>
+    </svg>
+    <div class="launch-splash" id="launch-splash" aria-hidden="true">
+      <div class="launch-mark">
+        <div class="landscape">
+          <i class="stars"></i><i class="sun"></i><i class="moon crescent"></i>
+          <i class="hill far"></i><i class="hill near"></i><i class="hill front"></i>
+        </div>
+      </div>
+      <span>Daylight</span>
+    </div>
     <header>
       <div class="brand">
         <button
@@ -35,7 +64,18 @@
         </button>
         Daylight
       </div>
-      <div id="clock"></div>
+      <div class="header-actions">
+        <div id="clock"></div>
+        <button class="icon-button settings-button" id="settings-button" type="button" aria-label="Settings" title="Settings">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <g class="settings-gear-teeth">
+              <path d="M10 3.35h4l.6 2.5 1.4.8 2.5-.7 2 3.4-1.9 1.8v1.7l1.9 1.8-2 3.4-2.5-.7-1.4.8-.6 2.5h-4l-.6-2.5-1.4-.8-2.5.7-2-3.4 1.9-1.8v-1.7l-1.9-1.8 2-3.4 2.5.7 1.4-.8z" />
+            </g>
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </button>
+      </div>
     </header>
     <main>
       <section class="hero">
@@ -43,11 +83,17 @@
           <p class="eyebrow" id="date"></p>
           <h1>My daily routine</h1>
           <p id="theme"></p>
-          <div class="hero-weather">
-            <div id="weather-summary" role="status">Loading weather…</div>
-            <div class="weather-details" id="weather-details" hidden>
-              <span id="weather-location"></span>
+          <div class="hero-weather" id="hero-weather">
+            <div class="weather-line">
+              <div>
+                <div id="weather-summary" role="status">Loading weather…</div>
+                <div class="weather-details" id="weather-location">Dhaka</div>
+              </div>
+              <button class="icon-button" id="use-location" type="button" aria-label="Use my location" title="Use my location">
+                <svg aria-hidden="true"><use href="#icon-location" /></svg>
+              </button>
             </div>
+            <p class="weather-details" id="location-status" role="status"></p>
           </div>
         </div>
         <div class="landscape" aria-hidden="true">
@@ -61,8 +107,16 @@
         <section class="schedule" aria-labelledby="schedule-title">
           <div class="section-head">
             <h2 id="schedule-title">Today's plan</h2>
-            <button id="today" class="quiet" hidden>Back to today</button>
+            <div class="section-actions">
+              <button id="today" class="icon-button" type="button" aria-label="Back to today" title="Back to today" hidden>
+                <svg aria-hidden="true"><use href="#icon-today" /></svg>
+              </button>
+              <button id="edit-routine" class="icon-button" type="button" aria-label="Edit routine" title="Edit routine">
+                <svg aria-hidden="true"><use href="#icon-edit" /></svg>
+              </button>
+            </div>
           </div>
+          <ul id="plan-notes" class="plan-notes" hidden></ul>
           <div id="timeline"></div>
         </section>
         <aside>
@@ -70,8 +124,9 @@
             <div class="eyebrow" id="next-label">NEXT UNFINISHED</div>
             <h2 id="next-title"></h2>
             <p id="next-detail"></p>
-            <button id="complete">
-              Mark complete <span aria-hidden="true">✓</span>
+            <button class="icon-button complete-button" id="complete" type="button">
+              Mark as done
+              <svg aria-hidden="true"><use href="#icon-check" /></svg>
             </button>
           </section>
           <section class="panel">
@@ -86,71 +141,135 @@
               aria-label="Daily progress"
             ></progress>
             <dl id="totals"></dl>
+            <p id="progress-status" role="status"></p>
           </section>
-          <section class="panel prayers">
-            <h2>Salah</h2>
-            <div
-              id="forbidden-status"
-              class="forbidden-status"
-              role="status"
-              hidden
-            ></div>
-            <div class="prayer-location">
-              <label for="prayer-district">District</label>
-              <div class="district-picker">
-                <select id="prayer-district"></select>
-              </div>
+          <section class="panel prayers" id="prayer-panel" hidden>
+            <div class="section-head">
+              <h2 id="prayer-title">Salah</h2>
+              <button id="edit-prayer" class="icon-button" type="button" aria-label="Edit prayer" title="Edit prayer">
+                <svg aria-hidden="true"><use href="#icon-edit" /></svg>
+              </button>
             </div>
-            <button class="location-button" id="use-location" type="button">
-              Use my location
-            </button>
-            <p id="location-status" role="status"></p>
-            <p id="prayer-method"></p>
+            <div id="salah-controls" hidden>
+              <div
+                id="forbidden-status"
+                class="forbidden-status"
+                role="status"
+                hidden
+              ></div>
+              <div class="prayer-location">
+                <label for="prayer-district">District</label>
+                <div class="district-picker">
+                  <select id="prayer-district"></select>
+                </div>
+              </div>
+              <p id="district-status" role="status"></p>
+              <p id="prayer-method"></p>
+            </div>
             <div id="prayers"></div>
-            <details id="forbidden-periods" hidden>
-              <summary>Forbidden prayer times</summary>
-              <ul id="forbidden-list"></ul>
-              <p>
-                If you still owe today’s Asr, the Islamic Foundation timetable
-                allows you to pray it during the period just before sunset.
-              </p>
-            </details>
-            <details>
-              <summary>How cutoffs are shown</summary>
-              <p>
-                Hanafi cutoffs use sunrise for Fajr, Asr start for Dhuhr, sunset
-                for Asr, Isha start for Maghrib, and the next dawn for Isha.
-                Pray earlier when you can. Your mosque sets its own Jumu’ah
-                congregation time.
-              </p>
-              <p>
-                Dhaka and Mymensingh use the
-                <a href="https://kivabe.com/namaz/?zilla=1&amp;month=12"
-                  >published Dhaka table</a
-                >
-                and
-                <a href="https://kivabe.com/namaz/?zilla=37&amp;month=12"
-                  >Mymensingh table</a
-                >
-                based on the
-                <a
-                  href="https://kivabe.com/namaz/Calender_permanent_namaz_time.pdf"
-                  >Islamic Foundation Bangladesh timetable</a
-                >. Other districts use estimates adjusted for their location.
-                February 29 uses an estimate from adjacent dates.
-              </p>
-              <p>
-                District boundaries are from Bangladesh Bureau of Statistics and
-                OCHA ROAP via
-                <a href="https://www.geoboundaries.org/">geoBoundaries</a>,
-                <a href="https://creativecommons.org/licenses/by/3.0/igo/"
-                  >CC BY 3.0 IGO</a
-                >, with rounded coordinates.
-              </p>
-            </details>
+            <div id="salah-details" hidden>
+              <details id="forbidden-periods" hidden>
+                <summary>Forbidden prayer times</summary>
+                <ul id="forbidden-list"></ul>
+                <p>
+                  If you still owe today’s Asr, the Islamic Foundation timetable
+                  allows you to pray it during the period just before sunset.
+                </p>
+              </details>
+              <details>
+                <summary>How cutoffs are shown</summary>
+                <p>
+                  Hanafi cutoffs use sunrise for Fajr, Asr start for Dhuhr, sunset
+                  for Asr, Isha start for Maghrib, and the next dawn for Isha.
+                  Pray earlier when you can. Your mosque sets its own Jumu’ah
+                  congregation time.
+                </p>
+                <p>
+                  Dhaka and Mymensingh use the
+                  <a href="https://kivabe.com/namaz/?zilla=1&amp;month=12"
+                    >published Dhaka table</a
+                  >
+                  and
+                  <a href="https://kivabe.com/namaz/?zilla=37&amp;month=12"
+                    >Mymensingh table</a
+                  >
+                  based on the
+                  <a
+                    href="https://kivabe.com/namaz/Calender_permanent_namaz_time.pdf"
+                    >Islamic Foundation Bangladesh timetable</a
+                  >. Other districts use estimates adjusted for their location.
+                  February 29 uses an estimate from adjacent dates.
+                </p>
+                <p>
+                  District boundaries are from Bangladesh Bureau of Statistics and
+                  OCHA ROAP via
+                  <a href="https://www.geoboundaries.org/">geoBoundaries</a>,
+                  <a href="https://creativecommons.org/licenses/by/3.0/igo/"
+                    >CC BY 3.0 IGO</a
+                  >, with rounded coordinates.
+                </p>
+              </details>
+            </div>
           </section>
         </aside>
       </div>
     </main>
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <form id="settings-form">
+        <h2 id="settings-title"></h2>
+        <p id="settings-intro"></p>
+        <fieldset id="routine-settings">
+          <legend>Daily routine</legend>
+          <label class="conversion" hidden><input id="use-custom-routine" type="checkbox" /> Replace my current routine</label>
+          <fieldset id="routine-fields">
+            <div class="settings-grid">
+              <label>Wake time <input id="wake-time" type="time" required /></label>
+              <label>Bedtime <input id="bed-time" type="time" required /></label>
+            </div>
+            <div class="settings-section">
+              <h3>Fixed commitments</h3>
+              <p>Block out work, commuting, appointments, or other time you’re unavailable.</p>
+              <div id="commitment-settings"></div>
+              <button class="icon-button add-row" id="add-commitment" type="button" aria-label="Add commitment" title="Add commitment">
+                <svg aria-hidden="true"><use href="#icon-plus" /></svg>
+              </button>
+            </div>
+            <div class="settings-section">
+              <h3>Daily activities</h3>
+              <p>Enter active minutes. A single session includes a 5-minute break after every 30 minutes of work.</p>
+              <div id="activity-settings"></div>
+              <button class="icon-button add-row" id="add-activity" type="button" aria-label="Add activity" title="Add activity">
+                <svg aria-hidden="true"><use href="#icon-plus" /></svg>
+              </button>
+            </div>
+          </fieldset>
+        </fieldset>
+        <fieldset id="prayer-settings">
+          <legend>Prayer section</legend>
+          <label>Prayer option
+            <span class="settings-select">
+              <select id="prayer-mode">
+                <option value="none">None</option>
+                <option value="salah">Salah · Bangladesh timetable</option>
+                <option value="custom">Custom prayer or practice</option>
+              </select>
+            </span>
+          </label>
+          <fieldset id="custom-prayer-settings" hidden>
+            <label>Section title <input id="custom-prayer-title" maxlength="60" required placeholder="Prayer" /></label>
+            <p>Set a time to reserve space in your plan, or leave it blank for a checklist entry.</p>
+            <div id="prayer-settings-rows"></div>
+            <button class="icon-button add-row" id="add-prayer" type="button" aria-label="Add prayer" title="Add prayer">
+              <svg aria-hidden="true"><use href="#icon-plus" /></svg>
+            </button>
+          </fieldset>
+        </fieldset>
+        <p id="settings-error" class="settings-error" role="alert" hidden></p>
+        <div class="settings-footer">
+          <button class="secondary-button" id="cancel-settings" type="button">Cancel</button>
+          <button class="primary-button" id="save-settings" type="submit">Save settings</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

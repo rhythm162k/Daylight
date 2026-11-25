@@ -13,28 +13,27 @@ const weatherConditions = {
 
 function initializeWeather(location) {
   const summary = document.getElementById('weather-summary');
-  const details = document.getElementById('weather-details');
   const place = document.getElementById('weather-location');
-  let requestedDistrict;
+  let requestedPlace;
   let request;
   let refreshAt = 0;
 
   return async function refreshWeather() {
-    const district = location.district;
-    if (document.hidden || (district === requestedDistrict && (request || Date.now() < refreshAt))) return;
+    const forecast = location.forecast;
+    if (document.hidden || (forecast === requestedPlace && (request || Date.now() < refreshAt))) return;
 
-    if (district !== requestedDistrict) {
+    if (forecast !== requestedPlace) {
       request?.abort();
-      requestedDistrict = district;
+      requestedPlace = forecast;
       summary.textContent = 'Loading weather…';
-      details.hidden = true;
+      place.textContent = forecast.label;
     }
 
     const controller = new AbortController();
     request = controller;
     const timeout = setTimeout(() => controller.abort(), 10000);
     try {
-      const center = await location.centerFor(district);
+      const center = await location.coordinatesFor(forecast);
       if (request !== controller) return;
       if (!center) throw new Error('Weather location unavailable');
       const url = new URL('https://api.open-meteo.com/v1/forecast');
@@ -53,13 +52,10 @@ function initializeWeather(location) {
       temperature.textContent = `${Math.round(current.temperature_2m)}°C`;
       const condition = weatherConditions[current.weather_code];
       summary.replaceChildren(temperature, condition ? ' · ' + condition : '');
-      place.textContent = 'Now in ' + district;
-      details.hidden = false;
       refreshAt = Date.now() + 15 * 60 * 1000;
     } catch {
       if (request !== controller) return;
       summary.textContent = 'Weather unavailable';
-      details.hidden = true;
       refreshAt = Date.now() + 60 * 1000;
     } finally {
       clearTimeout(timeout);

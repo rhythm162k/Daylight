@@ -1,10 +1,49 @@
+const byId = id => document.getElementById(id);
 const zone = 'Asia/Dhaka';
-const shortDay = new Intl.DateTimeFormat('en', {timeZone: zone, weekday: 'short'});
-const fullDate = new Intl.DateTimeFormat('en', {timeZone: zone, weekday: 'long', month: 'long', day: 'numeric'});
-const dayNumber = new Intl.DateTimeFormat('en', {timeZone: zone, day: 'numeric'});
-const dateKey = new Intl.DateTimeFormat('en-CA', {timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit'});
-const clock = new Intl.DateTimeFormat('en', {timeZone: zone, hour: 'numeric', minute: '2-digit'});
-const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const formatters = timezone => {
+  const formatter = (locale, options) => new Intl.DateTimeFormat(locale, {timeZone: timezone, ...options});
+  return {
+    shortDay: formatter('en', {weekday: 'short'}),
+    fullDate: formatter('en', {weekday: 'long', month: 'long', day: 'numeric'}),
+    dayNumber: formatter('en', {day: 'numeric'}),
+    dateKey: createDateKey(timezone),
+    previousKey: formatter('en-CA', {year: 'numeric', month: '2-digit', day: '2-digit'}),
+    clock: formatter('en', {hour: 'numeric', minute: '2-digit'}),
+    minuteClock: formatter('en-GB', {hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}),
+  };
+};
+const bangladesh = formatters(zone);
+const local = formatters();
+let profile = readProfile();
+let dates = profile?.legacy ? bangladesh : local;
+
+
+function shiftDay(date, offset) {
+  if (dates === bangladesh) return new Date(date.getTime() + offset * 86400000);
+  const shifted = new Date(date.getTime());
+  shifted.setHours(12, 0, 0, 0);
+  shifted.setDate(shifted.getDate() + offset);
+  return shifted;
+}
+
+function weekOf(date) {
+  const offset = weekdays.indexOf(dates.shortDay.format(date));
+  return weekdays.map((_, index) => shiftDay(date, index - offset));
+}
+
+function routineDate(now) {
+  const routine = profile?.routine;
+  if (routine && routine.bed < routine.wake && dates.minuteClock.format(now) < routine.bed) {
+    return shiftDay(now, -1);
+  }
+  return now;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, character =>
+    ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[character]));
+}
+
 const plans = [
   ['Build something', 'Start the week with the roadmap’s hands-on work.', ['Build the main task','Learn the next concept','Test and write notes'], 'Outline a WattaDumb explainer', false, false],
   ['Learn and apply', 'Study a concept in the morning, then try it in code.', ['Study the main lesson','Use it in a small example','Finish the exercise'], 'Script or storyboard a video', true, false],
@@ -15,11 +54,6 @@ const plans = [
   ['Review and reset', 'Use the roadmap time to finish today’s work and carry one clear next step into tomorrow.', ['Review a topic and start today’s task','Complete the remaining exercises','Write tomorrow’s first action'], 'Upload a finished video or plan the next one', false, true],
 ];
 const prayerNames = ['Fajr','Dhuhr / Jumu’ah on Friday','Asr','Maghrib','Isha'];
-const byId = id => document.getElementById(id);
-const weekOf = date => {
-  const offset = dayNames.indexOf(shortDay.format(date));
-  return dayNames.map((_, index) => new Date(date.getTime() + (index - offset) * 86400000));
-};
 const block = (id, start, end, title, detail, category = '') => ({id, start, end, title, detail, category});
 function routine(index) {
   const [, , focus, video, familyFirst, jobsLate] = plans[index];
@@ -59,137 +93,241 @@ function routine(index) {
   ].sort((a,b) => a.start-b.start);
 }
 function time(minutes) {
+  minutes %= dayMinutes;
   const hour = Math.floor(minutes / 60);
   return `${hour % 12 || 12}:${String(minutes % 60).padStart(2,'0')} ${hour < 12 ? 'AM' : 'PM'}`;
 }
-const range = ({start, end}) => time(start).split(' ')[1] === time(end).split(' ')[1]
-  ? `${time(start).split(' ')[0]}–${time(end)}`
-  : `${time(start)}–${time(end)}`;
-let selected = new Date();
-let todayKey = dateKey.format(selected);
-function readDone() {
-  try { return new Set(JSON.parse(localStorage.getItem('daylight:' + dateKey.format(selected)) || '[]')); }
-  catch { return new Set(); }
+function range({start, end}) {
+  const [startTime, startPeriod] = time(start).split(' ');
+  const [endTime, endPeriod] = time(end).split(' ');
+  const startLabel = startPeriod === endPeriod && start < dayMinutes && end < dayMinutes
+    ? startTime : startTime + ' ' + startPeriod;
+  const nextDay = end >= dayMinutes ? ' (+1 day)' : '';
+  return `${startLabel}–${endTime} ${endPeriod}${nextDay}`;
 }
+
+let selected = routineDate(new Date());
+let todayKey = dates.dateKey(selected);
+
+function readDone() {
+  try {
+    const saved = localStorage.getItem('daylight:' + dates.dateKey(selected)) ??
+      localStorage.getItem('daylight:' + dates.previousKey.format(selected));
+    return new Set(JSON.parse(saved || '[]'));
+  } catch { return new Set(); }
+}
+
 function toggle(id) {
   const done = readDone();
   if (done.has(id)) done.delete(id); else done.add(id);
-  localStorage.setItem('daylight:' + dateKey.format(selected), JSON.stringify([...done]));
+  try {
+    localStorage.setItem('daylight:' + dates.dateKey(selected), JSON.stringify([...done]));
+  } catch {
+    byId('progress-status').textContent = 'Your browser couldn’t save this checkmark.';
+    return;
+  }
+  byId('progress-status').textContent = '';
   render(id);
 }
+
 function checkbox(id, title, done) {
-  return `<button class="check" data-check="${id}" aria-label="${title}" aria-pressed="${done.has(id)}">${done.has(id) ? '✓' : ''}</button>`;
+  return `<button class="check" type="button" data-check="${escapeHtml(id)}" aria-label="${escapeHtml(title)}" aria-pressed="${done.has(id)}">${done.has(id) ? '✓' : ''}</button>`;
 }
-const localMinuteClock = new Intl.DateTimeFormat('en-GB', {
-  timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-});
+
 function renderForbiddenNotice(now) {
-  const periods = prayerLocation.forbiddenPeriods(now);
-  const [hour, minute] = localMinuteClock.format(now).split(':').map(Number);
+  const periods = locationSettings.forbiddenPeriods(now);
+  const [hour, minute] = bangladesh.minuteClock.format(now).split(':').map(Number);
   const currentMinute = hour * 60 + minute;
   const active = periods.find(({start, end}) => start <= currentMinute && currentMinute < end);
   const notice = byId('forbidden-status');
-  const estimated = !Object.hasOwn(bangladeshTimetable, prayerLocation.district) || dateKey.format(now).endsWith('02-29');
+  const estimated = !Object.hasOwn(bangladeshTimetable, locationSettings.district) || bangladesh.dateKey(now).endsWith('02-29');
   const message = active
     ? `Forbidden prayer time · ${active.reason} · Until ${time(active.end)}${estimated ? ' (estimated)' : ''}${active.reason === 'Sunset' ? '. If you still owe today’s Asr, pray it before sunset.' : ''}`
     : '';
   if (notice.textContent !== message) notice.textContent = message;
   notice.hidden = !active;
 }
-function renderPrayers(index, done) {
-  const district = prayerLocation.district;
-  const deadlines = prayerLocation.deadlines(selected);
-  const estimated = !Object.hasOwn(bangladeshTimetable, district) || dateKey.format(selected).endsWith('02-29');
+function renderSalah(done) {
+  // A selected planner day may be in a different time zone. Anchor the
+  // corresponding Bangladesh timetable to the same calendar date.
+  const prayerDay = new Date(dates.dateKey(selected) + 'T06:00:00Z');
+  const friday = bangladesh.shortDay.format(prayerDay) === 'Fri';
+  const district = locationSettings.district;
+  const deadlines = locationSettings.deadlines(prayerDay);
+  const estimated = !Object.hasOwn(bangladeshTimetable, district) || bangladesh.dateKey(prayerDay).endsWith('02-29');
   byId('prayer-method').textContent = deadlines
     ? (estimated ? 'Estimated cutoffs · Bangladesh time' : 'Timetable cutoffs · Bangladesh time')
     : 'District times are currently unavailable.';
-  const periods = prayerLocation.forbiddenPeriods(selected);
+  const periods = locationSettings.forbiddenPeriods(prayerDay);
   byId('forbidden-periods').hidden = periods.length === 0;
   byId('forbidden-list').innerHTML = periods.map(({start, end, reason}) =>
     `<li>${reason} · ${range({start, end})}${estimated ? ' (estimated)' : ''}</li>`
   ).join('');
   renderForbiddenNotice(new Date());
   byId('prayers').innerHTML = prayerNames.map((name, i) => {
-    const friday = i === 1 && index === 4;
     const title = i === 1 ? (friday ? 'Jumu’ah' : 'Dhuhr') : name;
     const cutoff = deadlines ? time(deadlines[i]) : '';
-    const timing = friday ? 'Follow your mosque’s congregation time'
+    const timing = i === 1 && friday ? 'Follow your mosque’s congregation time'
       : (cutoff ? 'Ends at ' + cutoff + (i === 4 ? ' next day' : '') : 'Time unavailable');
     return `<div class="prayer"><div><span>${title}</span><small>${timing}</small></div>${checkbox('prayer-' + i, title, done)}</div>`;
   }).join('');
 }
-function render(focusId) {
-  const current = new Date();
-  const index = dayNames.indexOf(shortDay.format(selected));
-  const isToday = dateKey.format(selected) === dateKey.format(current);
-  const [name, description] = plans[index];
-  byId('date').textContent = fullDate.format(selected);
-  byId('theme').textContent = name + ' · ' + description;
-  byId('schedule-title').textContent = isToday ? 'Today’s plan' : shortDay.format(selected) + '’s plan';
-  byId('today').hidden = isToday;
-  const week = weekOf(current);
-  document.querySelector('.week').innerHTML = week.map((date,i) =>
-    `<button class="day" data-day="${i}" aria-pressed="${i === index}" aria-label="${fullDate.format(date)}"${dateKey.format(date) === dateKey.format(current) ? ' aria-current="date"' : ''}><span>${dayNames[i]}</span><strong>${dayNumber.format(date)}</strong></button>`
-  ).join('');
-  const items = routine(index);
+function renderPrayers(done) {
+  const prayer = profile?.prayer || noPrayer;
+  const salah = prayer.mode === 'salah';
+  byId('prayer-panel').hidden = prayer.mode === 'none';
+  byId('salah-controls').hidden = !salah;
+  byId('salah-details').hidden = !salah;
+  byId('prayer-title').textContent = salah ? 'Salah' : prayer.title;
+  const editLabel = salah ? 'Prayer settings' : 'Edit prayer';
+  byId('edit-prayer').setAttribute('aria-label', editLabel);
+  byId('edit-prayer').title = editLabel;
+  if (salah) {
+    renderSalah(done);
+    return;
+  }
+  const entries = prayer.mode === 'custom' ? prayer.entries : [];
+  byId('prayers').innerHTML = entries.map(entry => {
+    const timing = entry.time ? time(minuteOf(entry.time)) + ' · ' + entry.minutes + ' min' : '';
+    return `<div class="prayer"><div><span>${escapeHtml(entry.name)}</span>${timing ? `<small>${timing}</small>` : ''}</div>${checkbox('custom-prayer-' + entry.id, entry.name, done)}</div>`;
+  }).join('');
+}
+
+function renderPlanRow(item, done) {
+  const notes = [item.detail, item.minutes ? item.minutes + ' min of activity' : ''].filter(Boolean);
+  const breaks = item.breaks?.length ? '<ul class="session-breaks">' +
+    item.breaks.map(pause => `<li>Walk or stretch · ${range(pause)}</li>`).join('') + '</ul>' : '';
+  const label = item.activityId ? item.title + ' · ' + range(item) : item.title;
+  return `<article class="row" data-done="${done.has(item.id)}">
+    <div class="time">${range(item)}</div>
+    <div><h3>${escapeHtml(item.title)}${item.category ? ` <span class="tag">${escapeHtml(item.category)}</span>` : ''}</h3>
+    ${notes.length ? `<p>${escapeHtml(notes.join(' · '))}</p>` : ''}${breaks}</div>
+    ${item.id ? checkbox(item.id, label, done) : ''}
+  </article>`;
+}
+
+function renderTotals(items, done) {
+  const groups = profile?.legacy
+    ? [['Roadmap', 'Roadmap'], ['Job search', 'Jobs'], ['WattaDumb', 'YouTube']]
+    : (profile?.routine.activities || []).map(activity => [activity.name, activity.id, activity.minutes]);
+  byId('totals').hidden = !groups.length;
+  byId('totals').innerHTML = groups.map(([label, key, goal]) => {
+    const blocks = items.filter(item => (item.activityId ?? item.category) === key);
+    const minutes = list => list.reduce((sum, item) => sum + (item.minutes ?? item.end - item.start), 0);
+    return `<div><dt>${escapeHtml(label)}</dt><dd>${minutes(blocks.filter(item => done.has(item.id)))} / ${goal ?? minutes(blocks)} min</dd></div>`;
+  }).join('');
+}
+
+function render(focusId, now = new Date()) {
+  const today = routineDate(now);
+  const index = weekdays.indexOf(dates.shortDay.format(selected));
+  const isToday = dates.dateKey(selected) === dates.dateKey(today);
+  const plan = profile?.routine ? planDay(profile.routine, profile.prayer, index) : null;
+  const items = profile?.legacy ? routine(index) : plan?.items || [];
   const done = readDone();
-  const count = items.filter(item => done.has(item.id)).length;
-  const unfinished = items.filter(item => !done.has(item.id));
-  const localTime = new Intl.DateTimeFormat('en-GB', {timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).format(current);
-  const [hour, minute] = localTime.split(':').map(Number);
-  const next = (isToday && unfinished.find(item => item.end > hour * 60 + minute)) || unfinished[0];
-  byId('timeline').innerHTML = items.map(item => `<article class="row" data-done="${done.has(item.id)}"><div class="time">${range(item)}</div><div><h3>${item.title}${item.category ? ` <span class="tag">${item.category}</span>` : ''}</h3><p>${item.detail}</p></div>${checkbox(item.id,item.title,done)}</article>`).join('');
-  renderPrayers(index, done);
-  byId('next-label').textContent = next ? 'Next unfinished' : 'Daily plan complete';
-  byId('next-title').textContent = next ? next.title : 'You’re done for the day';
-  byId('next-detail').textContent = next ? range(next) + ' · ' + next.detail : 'All routine blocks are checked off.';
+  byId('date').textContent = dates.fullDate.format(selected);
+  byId('theme').textContent = profile?.legacy ? plans[index].slice(0, 2).join(' · ') :
+    profile ? `Awake ${range({start: minuteOf(profile.routine.wake), end: minuteOf(profile.routine.bed) +
+        (profile.routine.bed < profile.routine.wake ? dayMinutes : 0)})}` :
+      'Make time for what matters to you.';
+  byId('schedule-title').textContent = isToday ? 'Today’s plan' : weekdays[index] + '’s plan';
+  byId('today').hidden = isToday;
+  document.querySelector('.week').innerHTML = weekOf(today).map((date, i) =>
+    `<button class="day" data-day="${i}" aria-pressed="${i === index}" aria-label="${dates.fullDate.format(date)}"${dates.dateKey(date) === dates.dateKey(today) ? ' aria-current="date"' : ''}><span>${weekdays[i]}</span><strong>${dates.dayNumber.format(date)}</strong></button>`
+  ).join('');
+  byId('timeline').innerHTML = items.length ? items.map(item => renderPlanRow(item, done)).join('') :
+    '<p class="empty-plan">Add activities or commitments to fill your plan.</p>';
+
+  const notes = plan ? [
+    ...plan.unscheduled.map(activity => activity.name + ' · ' + activity.remaining +
+      (activity.split ? ' min didn’t fit.' : ' min need one free session, including breaks.')),
+    ...plan.outside.map(name => name + ' · Scheduled partly or entirely outside your waking hours.'),
+    ...(plan.conflicts.length ? ['Fixed times overlap · ' + plan.conflicts.join(', ')] : []),
+  ] : [];
+  byId('plan-notes').hidden = !notes.length;
+  byId('plan-notes').innerHTML = notes.map(note => '<li>' + escapeHtml(note) + '</li>').join('');
+
+  renderPrayers(done);
+  const trackable = items.filter(item => item.id);
+  const unfinished = trackable.filter(item => !done.has(item.id));
+  const count = trackable.length - unfinished.length;
+  const currentMinute = minuteOf(dates.minuteClock.format(now)) +
+    (dates.dateKey(today) !== dates.dateKey(now) ? dayMinutes : 0);
+  const next = (isToday && unfinished.find(item => item.end > currentMinute)) || unfinished[0];
+  byId('next-label').textContent = next ? 'Next unfinished' : 'Daily plan';
+  byId('next-title').textContent = next ? next.title : trackable.length ? 'You’re done for the day' : 'No activities scheduled';
+  byId('next-detail').textContent = next ? range(next) + (next.detail ? ' · ' + next.detail : '') :
+    trackable.length ? 'All activity blocks are checked off.' : 'Activities will appear here when they fit into your plan.';
   byId('complete').hidden = !next;
   byId('complete').onclick = next ? () => toggle(next.id) : null;
-  byId('fraction').textContent = count + ' / ' + items.length;
-  byId('progress').value = count / items.length;
-  byId('totals').innerHTML = [['Roadmap','Roadmap'],['Job search','Jobs'],['WattaDumb','YouTube']].map(([label,category]) => {
-    const blocks = items.filter(item => item.category === category);
-    const minutes = list => list.reduce((sum,item) => sum + item.end-item.start,0);
-    return `<div><dt>${label}</dt><dd>${minutes(blocks.filter(item => done.has(item.id)))} / ${minutes(blocks)} min</dd></div>`;
-  }).join('');
-  if (focusId) document.querySelector(`[data-check="${focusId}"]`)?.focus();
+  byId('fraction').textContent = count + ' / ' + trackable.length;
+  byId('progress').value = trackable.length ? count / trackable.length : 0;
+  renderTotals(items, done);
+  if (focusId) document.querySelector(`[data-check="${CSS.escape(focusId)}"]`)?.focus();
 }
+
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
   if (!button) return;
   if (button.dataset.day !== undefined) {
-    selected = weekOf(new Date())[Number(button.dataset.day)];
+    selected = weekOf(routineDate(new Date()))[Number(button.dataset.day)];
     render();
     document.querySelector(`[data-day="${button.dataset.day}"]`).focus();
   } else if (button.dataset.check) toggle(button.dataset.check);
   else if (button.id === 'today') {
-    selected = new Date();
+    selected = routineDate(new Date());
     render();
     document.querySelector('[aria-current="date"]').focus();
   }
 });
-function renderClock(now) {
-  byId('clock').textContent = clock.format(now) + ' · ' + prayerLocation.district;
+
+function showClock(now) {
+  byId('clock').textContent = dates.clock.format(now);
 }
-function tick() {
-  const now = new Date();
-  renderClock(now);
-  refreshWeather();
-  if (dateKey.format(now) !== todayKey) {
-    selected = now;
-    todayKey = dateKey.format(now);
-    render();
-  } else {
-    renderForbiddenNotice(now);
-  }
-}
-const prayerLocation = initializePrayerLocation(() => {
-  renderClock(new Date());
-  renderPrayers(dayNames.indexOf(shortDay.format(selected)), readDone());
+
+const locationSettings = initializeLocation(profile?.legacy, () => {
+  if (profile?.prayer.mode === 'salah') renderSalah(readDone());
   refreshWeather();
 });
-const refreshWeather = initializeWeather(prayerLocation);
-document.addEventListener('visibilitychange', refreshWeather);
+const refreshWeather = initializeWeather(locationSettings);
+
+function tick() {
+  const now = new Date();
+  const today = routineDate(now);
+  showClock(now);
+  if (dates.dateKey(today) !== todayKey) {
+    selected = today;
+    todayKey = dates.dateKey(today);
+    render(undefined, now);
+  }
+  if (profile?.prayer.mode === 'salah') renderForbiddenNotice(now);
+  refreshWeather();
+}
+
+function applySettings(next) {
+  const previousDates = dates;
+  const previousToday = todayKey;
+  const wasToday = dates.dateKey(selected) === todayKey;
+  profile = next;
+  dates = profile.legacy ? bangladesh : local;
+  const today = routineDate(new Date());
+  todayKey = dates.dateKey(today);
+  if (wasToday || dates !== previousDates || todayKey !== previousToday) selected = today;
+  if (profile.prayer.mode === 'salah') locationSettings.loadPrayerDistrict();
+  tick();
+  render();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) tick();
+});
+if (profile?.prayer.mode === 'salah') locationSettings.loadPrayerDistrict();
 tick();
 render();
 setInterval(tick, 15000);
+
+const splash = byId('launch-splash');
+Promise.allSettled((splash.getAnimations?.() || []).map(animation => animation.finished)).then(() => {
+  splash.hidden = true;
+  initializeSettings(profile, applySettings);
+});
