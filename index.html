@@ -35,6 +35,9 @@
         <path d="M19 10c0 5-7 11-7 11s-7-6-7-11a7 7 0 1 1 14 0Z" />
         <circle cx="12" cy="10" r="2.25" />
       </symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M20 4v6h-6m6 0a8 8 0 1 0-.6 6" />
+      </symbol>
       <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" /></symbol>
       <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14" /></symbol>
       <symbol id="icon-delete" viewBox="0 0 24 24">
@@ -68,6 +71,9 @@
       </div>
       <div class="header-actions">
         <div id="clock"></div>
+        <button class="icon-button" id="refresh-button" type="button" aria-label="Refresh" title="Refresh">
+          <svg aria-hidden="true"><use href="#icon-refresh" /></svg>
+        </button>
         <button class="icon-button settings-button" id="settings-button" type="button" aria-label="Settings" title="Settings">
           <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -79,6 +85,7 @@
         </button>
       </div>
     </header>
+    <div id="pull-refresh-status" aria-hidden="true" hidden></div>
     <main>
       <section class="hero">
         <div class="hero-copy">

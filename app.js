@@ -363,3 +363,58 @@ Promise.allSettled((splash.getAnimations?.() || []).map(animation => animation.f
   splash.hidden = true;
   initializeSettings(profile, applySettings);
 });
+
+function initializeRefresh() {
+  const reload = () => window.location.reload();
+  byId('refresh-button').addEventListener('click', reload);
+  if (!navigator.standalone && !matchMedia('(display-mode: standalone)').matches) return;
+  document.documentElement.classList.add('standalone-refresh');
+
+  const status = byId('pull-refresh-status');
+  const settings = byId('settings-dialog');
+  const threshold = 72;
+  let start;
+  let ready = false;
+
+  function reset() {
+    start = undefined;
+    ready = false;
+    status.hidden = true;
+  }
+
+  document.addEventListener('touchstart', event => {
+    reset();
+    if (event.touches.length === 1 && window.scrollY === 0 && !settings.open && splash.hidden) {
+      start = event.touches[0];
+    }
+  }, {passive: true});
+
+  document.addEventListener('touchmove', event => {
+    if (!start) return;
+    if (event.touches.length !== 1 || !event.cancelable || settings.open || window.scrollY > 0) {
+      reset();
+      return;
+    }
+    const touch = event.touches[0];
+    const down = touch.clientY - start.clientY;
+    const across = Math.abs(touch.clientX - start.clientX);
+    if (Math.max(Math.abs(down), across) < 6 && status.hidden) return;
+    if (down <= across) {
+      reset();
+      return;
+    }
+    event.preventDefault();
+    ready = down >= threshold;
+    status.textContent = ready ? 'Release to refresh' : 'Pull down to refresh';
+    status.hidden = false;
+  }, {passive: false});
+
+  document.addEventListener('touchend', () => {
+    const shouldReload = ready && !settings.open;
+    reset();
+    if (shouldReload) reload();
+  }, {passive: true});
+  document.addEventListener('touchcancel', reset, {passive: true});
+}
+
+initializeRefresh();
